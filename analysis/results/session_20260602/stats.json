@@ -1,0 +1,407 @@
+{
+  "session_dir": "F:\\data\\SleepAgent\\session_20260602",
+  "output_dir": "F:\\project\\sleepagent_Android\\analysis\\results\\session_20260602",
+  "manifest_session": {
+    "session_id": "20260602_020422",
+    "source_type": "BLE",
+    "status": "COMPLETED",
+    "analysis_status": "PENDING",
+    "device_id": "74:4D:BD:66:59:72",
+    "device_name": "MindBridge-v3.11",
+    "device_address": "74:4D:BD:66:59:72",
+    "started_at_epoch_ms": 1780337062967,
+    "ended_at_epoch_ms": 1780362423208,
+    "sampling_rate_hz": 250,
+    "channel_count": 8,
+    "raw_format": "csv",
+    "packet_count": 2220,
+    "created_at_epoch_ms": 1780337062975,
+    "updated_at_epoch_ms": 1780362423208
+  },
+  "row_count": 2397,
+  "reported_packet_count": 2220,
+  "reported_started": "2026-06-02T02:04:22+08:00",
+  "reported_ended": "2026-06-02T09:07:03+08:00",
+  "reported_duration_ms": 25360241,
+  "observed_first_host_timestamp": "2026-06-02T02:04:23+08:00",
+  "observed_last_host_timestamp": "2026-06-02T02:05:20+08:00",
+  "observed_duration_ms": 57169,
+  "host_interval_stats": {
+    "count": 2396,
+    "positive_count": 2283,
+    "non_positive_count": 113,
+    "min_ms": 0.0,
+    "max_ms": 1030.0,
+    "mean_ms": 23.860183639398997,
+    "median_ms": 2.0,
+    "p95_ms": 124.0,
+    "p99_ms": 431.2000000000007,
+    "gt_20ms_count": 422,
+    "gt_100ms_count": 149,
+    "top_intervals_ms": [
+      [
+        1,
+        718
+      ],
+      [
+        2,
+        425
+      ],
+      [
+        3,
+        212
+      ],
+      [
+        4,
+        115
+      ],
+      [
+        0,
+        113
+      ],
+      [
+        5,
+        100
+      ],
+      [
+        9,
+        45
+      ],
+      [
+        6,
+        36
+      ],
+      [
+        10,
+        34
+      ],
+      [
+        8,
+        31
+      ]
+    ]
+  },
+  "sequence_stats": {
+    "count": 2396,
+    "top_raw_deltas": [
+      [
+        1,
+        1328
+      ],
+      [
+        4,
+        726
+      ],
+      [
+        8,
+        70
+      ],
+      [
+        2,
+        67
+      ],
+      [
+        12,
+        41
+      ],
+      [
+        3,
+        37
+      ],
+      [
+        16,
+        18
+      ],
+      [
+        5,
+        16
+      ],
+      [
+        6,
+        16
+      ],
+      [
+        7,
+        14
+      ]
+    ],
+    "top_mod256_deltas": [
+      [
+        1,
+        1334
+      ],
+      [
+        4,
+        735
+      ],
+      [
+        8,
+        72
+      ],
+      [
+        2,
+        69
+      ],
+      [
+        12,
+        42
+      ],
+      [
+        3,
+        38
+      ],
+      [
+        16,
+        19
+      ],
+      [
+        5,
+        16
+      ],
+      [
+        6,
+        16
+      ],
+      [
+        7,
+        14
+      ]
+    ],
+    "large_forward_count": 1031,
+    "non_forward_count": 37,
+    "max_raw_delta": 32,
+    "min_raw_delta": -255
+  },
+  "sample_number_stats": {
+    "count": 2396,
+    "top_raw_deltas": [
+      [
+        1,
+        1328
+      ],
+      [
+        4,
+        726
+      ],
+      [
+        8,
+        70
+      ],
+      [
+        2,
+        67
+      ],
+      [
+        12,
+        41
+      ],
+      [
+        3,
+        37
+      ],
+      [
+        16,
+        18
+      ],
+      [
+        5,
+        16
+      ],
+      [
+        6,
+        16
+      ],
+      [
+        7,
+        14
+      ]
+    ],
+    "top_mod256_deltas": [
+      [
+        1,
+        1334
+      ],
+      [
+        4,
+        735
+      ],
+      [
+        8,
+        72
+      ],
+      [
+        2,
+        69
+      ],
+      [
+        12,
+        42
+      ],
+      [
+        3,
+        38
+      ],
+      [
+        16,
+        19
+      ],
+      [
+        5,
+        16
+      ],
+      [
+        6,
+        16
+      ],
+      [
+        7,
+        14
+      ]
+    ],
+    "large_forward_count": 1031,
+    "non_forward_count": 37,
+    "max_raw_delta": 32,
+    "min_raw_delta": -255
+  },
+  "state_distribution": [
+    [
+      5,
+      2397
+    ]
+  ],
+  "channel_stats": [
+    {
+      "channel": 1,
+      "samples": 2397,
+      "count_min": 8388607,
+      "count_max": 8388607,
+      "count_unique": 1,
+      "rail_count": 2397,
+      "rail_ratio": 1.0,
+      "uv_min": 187500.0,
+      "uv_max": 187500.0,
+      "uv_mean": 187500.0,
+      "uv_median": 187500.0,
+      "uv_std": 0.0,
+      "uv_p05": 187500.0,
+      "uv_p95": 187500.0
+    },
+    {
+      "channel": 2,
+      "samples": 2397,
+      "count_min": 1704499,
+      "count_max": 3978651,
+      "count_unique": 2393,
+      "rail_count": 0,
+      "rail_ratio": 0.0,
+      "uv_min": 38098.527344,
+      "uv_max": 88929.789063,
+      "uv_mean": 56030.52977206684,
+      "uv_median": 56007.300781,
+      "uv_std": 9695.256446871164,
+      "uv_p05": 38747.0523438,
+      "uv_p95": 75119.42031259999
+    },
+    {
+      "channel": 3,
+      "samples": 2397,
+      "count_min": 8388607,
+      "count_max": 8388607,
+      "count_unique": 1,
+      "rail_count": 2397,
+      "rail_ratio": 1.0,
+      "uv_min": 187500.0,
+      "uv_max": 187500.0,
+      "uv_mean": 187500.0,
+      "uv_median": 187500.0,
+      "uv_std": 0.0,
+      "uv_p05": 187500.0,
+      "uv_p95": 187500.0
+    },
+    {
+      "channel": 4,
+      "samples": 2397,
+      "count_min": 8388607,
+      "count_max": 8388607,
+      "count_unique": 1,
+      "rail_count": 2397,
+      "rail_ratio": 1.0,
+      "uv_min": 187500.0,
+      "uv_max": 187500.0,
+      "uv_mean": 187500.0,
+      "uv_median": 187500.0,
+      "uv_std": 0.0,
+      "uv_p05": 187500.0,
+      "uv_p95": 187500.0
+    },
+    {
+      "channel": 5,
+      "samples": 2397,
+      "count_min": -8388608,
+      "count_max": 8388607,
+      "count_unique": 2306,
+      "rail_count": 93,
+      "rail_ratio": 0.03879849812265332,
+      "uv_min": -187500.015625,
+      "uv_max": 187500.0,
+      "uv_mean": 1945.5799932377793,
+      "uv_median": -227.741928,
+      "uv_std": 45026.647157112784,
+      "uv_p05": -22632.607813,
+      "uv_p95": 59394.21718779944
+    },
+    {
+      "channel": 6,
+      "samples": 2397,
+      "count_min": -8388608,
+      "count_max": 8388607,
+      "count_unique": 2307,
+      "rail_count": 91,
+      "rail_ratio": 0.03796412181894034,
+      "uv_min": -187500.015625,
+      "uv_max": 187500.0,
+      "uv_mean": 1921.566148477685,
+      "uv_median": -226.311417,
+      "uv_std": 44485.030150404775,
+      "uv_p05": -22374.108984399998,
+      "uv_p95": 58651.375780999915
+    },
+    {
+      "channel": 7,
+      "samples": 2397,
+      "count_min": -8388608,
+      "count_max": 8388607,
+      "count_unique": 2299,
+      "rail_count": 95,
+      "rail_ratio": 0.03963287442636629,
+      "uv_min": -187500.015625,
+      "uv_max": 187500.0,
+      "uv_mean": 14925.943808132666,
+      "uv_median": 13175.772461,
+      "uv_std": 45050.57841803946,
+      "uv_p05": -9272.209960599997,
+      "uv_p95": 73964.40625039997
+    },
+    {
+      "channel": 8,
+      "samples": 2397,
+      "count_min": 8388607,
+      "count_max": 8388607,
+      "count_unique": 1,
+      "rail_count": 2397,
+      "rail_ratio": 1.0,
+      "uv_min": 187500.0,
+      "uv_max": 187500.0,
+      "uv_mean": 187500.0,
+      "uv_median": 187500.0,
+      "uv_std": 0.0,
+      "uv_p05": 187500.0,
+      "uv_p95": 187500.0
+    }
+  ],
+  "warnings": [
+    "manifest packet_count=2220 but raw.csv rows=2397",
+    "manifest duration is much longer than observed raw timestamp span",
+    "channels saturated at ADC rail for >=50% rows: ch1, ch3, ch4, ch8"
+  ]
+}
