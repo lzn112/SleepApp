@@ -13,4 +13,8 @@
 /captures
 .externalNativeBuild
 .cxx
-local.p
+local.properties
+*.log
+*.tar
+*.png
+"__pycache__/" 
