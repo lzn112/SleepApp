@@ -65,9 +65,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-    // PyTorch Mobile (lite interpreter) — for TinyEEGNet inference
-    implementation("org.pytorch:pytorch_android_lite:2.1.0")
-
+    // onnxruntime dependence
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.17.3")
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

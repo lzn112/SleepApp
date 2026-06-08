@@ -31,11 +31,11 @@ import com.sleepagent.prototype.sleep.processing.SleepEegDownsampler
 import com.sleepagent.prototype.sleep.processing.SleepSignalPipeline
 import com.sleepagent.prototype.sleep.processing.SleepSignalSnapshot
 import com.sleepagent.prototype.sleep.staging.MockSleepStageInferenceEngine
+import com.sleepagent.prototype.sleep.staging.OnnxSleepStageInferenceEngine
 import com.sleepagent.prototype.sleep.staging.SleepStageInferenceEngine
 import com.sleepagent.prototype.sleep.staging.SleepStagePipeline
 import com.sleepagent.prototype.sleep.staging.SleepStagePrediction
 import com.sleepagent.prototype.sleep.staging.SleepStageSnapshot
-import com.sleepagent.prototype.sleep.staging.TinyEEGNetInferenceEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -463,14 +463,31 @@ private class LazyFallbackSleepStageInferenceEngine(
 
     override fun predict(input: Array<FloatArray>): SleepStagePrediction {
         if (realEngineDisabled) {
+            Log.w(
+                "SleepStageInference",
+                "Real ONNX engine disabled; using mock fallback. inputLength=${input.firstOrNull()?.size}"
+            )
             return fallbackEngine.predict(input)
         }
 
         return runCatching {
-            val engine = realEngine ?: TinyEEGNetInferenceEngine(contextProvider()).also {
+            val engine = realEngine ?: OnnxSleepStageInferenceEngine(contextProvider()).also {
                 realEngine = it
+                Log.i("SleepStageInference", "ONNX engine initialized successfully")
             }
+
+            Log.d(
+                "SleepStageInference",
+                "Running ONNX inference. channels=${input.size}, samples=${input.firstOrNull()?.size}"
+            )
+
             engine.predict(input)
+        }.onFailure { error ->
+            Log.e(
+                "SleepStageInference",
+                "ONNX inference failed. channels=${input.size}, samples=${input.firstOrNull()?.size}",
+                error
+            )
         }.getOrElse {
             realEngineDisabled = true
             realEngine = null

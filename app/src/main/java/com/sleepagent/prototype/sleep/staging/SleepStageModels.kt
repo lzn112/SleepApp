@@ -5,8 +5,7 @@ enum class SleepStage(
     val shortLabel: String
 ) {
     Wake(label = "Wake / 清醒", shortLabel = "W"),
-    N1(label = "N1 / 浅睡", shortLabel = "N1"),
-    N2(label = "N2 / 浅睡", shortLabel = "N2"),
+    Light(label = "Light / 浅睡", shortLabel = "L"),
     N3(label = "N3 / 深睡", shortLabel = "N3"),
     REM(label = "REM / 快速眼动", shortLabel = "REM"),
     Unknown(label = "等待数据", shortLabel = "-")

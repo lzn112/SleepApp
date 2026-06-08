@@ -25,10 +25,24 @@ class SleepStagePipelineTest {
     }
 
     @Test
-    fun completesInferenceAtThreeThousandSamples() {
+    fun doesNotInferUntilFiveEpochsComplete() {
         val pipeline = SleepStagePipeline()
 
-        repeat(3000) { index ->
+        repeat(3000 * 4) { index ->
+            pipeline.ingest(sample(index))
+        }
+
+        val snapshot = pipeline.snapshot()
+        assertNull(snapshot.latestResult)
+        assertEquals(0, snapshot.hypnogram.size)
+        assertEquals(0, snapshot.bufferedSamples)
+    }
+
+    @Test
+    fun infersCenterEpochWhenFiveEpochsComplete() {
+        val pipeline = SleepStagePipeline()
+
+        repeat(3000 * 5) { index ->
             pipeline.ingest(sample(index))
         }
 
@@ -37,7 +51,23 @@ class SleepStagePipelineTest {
         assertEquals(SleepStage.Wake, snapshot.currentStage)
         assertEquals(0, snapshot.bufferedSamples)
         assertEquals(1, snapshot.hypnogram.size)
+        assertEquals(2, snapshot.latestResult?.epochIndex)
         assertEquals(0f, snapshot.epochProgress, 1e-6f)
+    }
+
+    @Test
+    fun slidesOneEpochAtATimeAfterFirstPrediction() {
+        val pipeline = SleepStagePipeline()
+
+        repeat(3000 * 6) { index ->
+            pipeline.ingest(sample(index))
+        }
+
+        val snapshot = pipeline.snapshot()
+        assertNotNull(snapshot.latestResult)
+        assertEquals(2, snapshot.hypnogram.size)
+        assertEquals(3, snapshot.latestResult?.epochIndex)
+        assertEquals(0, snapshot.bufferedSamples)
     }
 
     private fun sample(index: Int): DownsampledEegSample {

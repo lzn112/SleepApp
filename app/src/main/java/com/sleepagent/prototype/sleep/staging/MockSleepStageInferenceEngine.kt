@@ -3,19 +3,18 @@ package com.sleepagent.prototype.sleep.staging
 class MockSleepStageInferenceEngine : SleepStageInferenceEngine {
     private val classificationStages = listOf(
         SleepStage.Wake,
-        SleepStage.N1,
-        SleepStage.N2,
+        SleepStage.Light,
         SleepStage.N3,
         SleepStage.REM
     )
+
     private val sequence = listOf(
         SleepStage.Wake,
-        SleepStage.N1,
-        SleepStage.N2,
-        SleepStage.N2,
+        SleepStage.Light,
+        SleepStage.Light,
         SleepStage.N3,
         SleepStage.N3,
-        SleepStage.N2,
+        SleepStage.Light,
         SleepStage.REM
     )
 
