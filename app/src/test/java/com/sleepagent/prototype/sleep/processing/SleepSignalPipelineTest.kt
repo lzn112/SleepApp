@@ -46,9 +46,10 @@ class SleepSignalPipelineTest {
         assertEquals(100, snapshot.eeg.sampleRateHz)
         assertEquals(5, snapshot.eeg.selectedChannel)
         assertEquals("CH6", snapshot.eeg.selectedLabel)
+        assertEquals(500, snapshot.eeg.rawSeries.size)
         assertEquals(436, snapshot.eeg.series.size)
         assertTrue(snapshot.eeg.series.isNotEmpty())
-        assertEquals(snapshot.eeg.series.last(), snapshot.eeg.selectedValue!!)
+        assertEquals(snapshot.eeg.rawSeries.last(), snapshot.eeg.selectedValue!!)
     }
 
     @Test

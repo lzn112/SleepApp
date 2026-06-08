@@ -596,9 +596,9 @@ private fun SleepMonitorScreen(
 
             SingleChannelWaveSection(
                 title = "EEG 实时波形（CH6）",
-                points = signalSnapshot.eeg.series,
+                points = signalSnapshot.eeg.rawSeries.ifEmpty { signalSnapshot.eeg.series },
                 lineColor = MaterialTheme.colorScheme.primary,
-                description = "CH6 / 100 Hz / 5-35 Hz 显示通路。"
+                description = "CH6 / 100 Hz / 原始波形。"
             )
 
             when (deviceStatus.opticalMode) {

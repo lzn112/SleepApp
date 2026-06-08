@@ -10,6 +10,7 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.sleepagent.prototype.R
@@ -29,7 +30,10 @@ import com.sleepagent.prototype.device.TdcsConfig
 import com.sleepagent.prototype.sleep.processing.SleepEegDownsampler
 import com.sleepagent.prototype.sleep.processing.SleepSignalPipeline
 import com.sleepagent.prototype.sleep.processing.SleepSignalSnapshot
+import com.sleepagent.prototype.sleep.staging.MockSleepStageInferenceEngine
+import com.sleepagent.prototype.sleep.staging.SleepStageInferenceEngine
 import com.sleepagent.prototype.sleep.staging.SleepStagePipeline
+import com.sleepagent.prototype.sleep.staging.SleepStagePrediction
 import com.sleepagent.prototype.sleep.staging.SleepStageSnapshot
 import com.sleepagent.prototype.sleep.staging.TinyEEGNetInferenceEngine
 import kotlinx.coroutines.CoroutineScope
@@ -85,9 +89,8 @@ class SleepRecordingService : Service() {
 
     private var eegDownsampler = SleepEegDownsampler()
     private var signalPipeline = SleepSignalPipeline(snapshotIntervalPackets = 24)
-    // Loaded once; the lite interpreter is thread-safe for concurrent inference calls.
-    private val inferenceEngine by lazy { TinyEEGNetInferenceEngine(applicationContext) }
-    private var sleepStagePipeline = SleepStagePipeline(inferenceEngine = inferenceEngine)
+    private val sleepStageInferenceEngine = LazyFallbackSleepStageInferenceEngine { applicationContext }
+    private var sleepStagePipeline = SleepStagePipeline(inferenceEngine = sleepStageInferenceEngine)
 
     override fun onBind(intent: Intent?): IBinder = binder
 
@@ -296,6 +299,8 @@ class SleepRecordingService : Service() {
     }
 
     private suspend fun handleRawPacket(packet: HeadbandRawPacket) {
+        logRaw51Check(packet)
+
         val downsampledEegSample = eegDownsampler.ingest(packet)
         val snapshot = signalPipeline.ingest(
             packet = packet,
@@ -327,6 +332,21 @@ class SleepRecordingService : Service() {
         }
     }
 
+    private fun logRaw51Check(packet: HeadbandRawPacket) {
+        val counts = packet.eegCounts
+        if (counts.size < 8) return
+        Log.d(
+            "RAW51_CHECK",
+            "seq=${packet.sequence} " +
+                "ch5=${counts[4]} " +
+                "ch6=${counts[5]} " +
+                "ch7=${counts[6]} " +
+                "ch8=${counts[7]} " +
+                "diff57=${counts[4] - counts[6]} " +
+                "diff68=${counts[5] - counts[7]}"
+        )
+    }
+
     private suspend fun finishActiveSession(status: SleepSessionStatus): String? {
         val finishedSession = sessionIoMutex.withLock {
             val session = activeSession ?: return@withLock null
@@ -347,7 +367,7 @@ class SleepRecordingService : Service() {
         eegDownsampler = SleepEegDownsampler()
         signalPipeline = SleepSignalPipeline(snapshotIntervalPackets = 24)
         // Re-use the same engine instance — no need to reload the model weights.
-        sleepStagePipeline = SleepStagePipeline(inferenceEngine = inferenceEngine)
+        sleepStagePipeline = SleepStagePipeline(inferenceEngine = sleepStageInferenceEngine)
     }
 
     private fun acquireWakeLock() {
@@ -430,6 +450,31 @@ class SleepRecordingService : Service() {
                 action = ACTION_START_RECORDING_FOREGROUND
             }
             ContextCompat.startForegroundService(context, intent)
+        }
+    }
+}
+
+private class LazyFallbackSleepStageInferenceEngine(
+    private val contextProvider: () -> Context
+) : SleepStageInferenceEngine {
+    private val fallbackEngine = MockSleepStageInferenceEngine()
+    private var realEngine: SleepStageInferenceEngine? = null
+    private var realEngineDisabled = false
+
+    override fun predict(input: Array<FloatArray>): SleepStagePrediction {
+        if (realEngineDisabled) {
+            return fallbackEngine.predict(input)
+        }
+
+        return runCatching {
+            val engine = realEngine ?: TinyEEGNetInferenceEngine(contextProvider()).also {
+                realEngine = it
+            }
+            engine.predict(input)
+        }.getOrElse {
+            realEngineDisabled = true
+            realEngine = null
+            fallbackEngine.predict(input)
         }
     }
 }

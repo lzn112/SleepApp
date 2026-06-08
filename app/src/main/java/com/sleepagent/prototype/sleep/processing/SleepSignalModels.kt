@@ -27,6 +27,7 @@ data class SleepEegSnapshot(
     val status: String = "waiting_for_samples",
     val selectedValue: Float? = null,
     val signalQuality: Float? = null,
+    val rawSeries: List<Float> = emptyList(),
     val series: List<Float> = emptyList()
 )
 

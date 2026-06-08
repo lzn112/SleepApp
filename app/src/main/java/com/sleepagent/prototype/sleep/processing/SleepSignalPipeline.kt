@@ -214,15 +214,17 @@ class SleepSignalPipeline(
     }
 
     private fun buildEegSnapshot(packet: HeadbandRawPacket): SleepEegSnapshot {
+        val rawSeries = eegBuffer.toList()
         val series = eegDisplayProcessor.process(eegBuffer)
-        val selectedValue = series.lastOrNull() ?: eegBuffer.lastOrNull()
+        val selectedValue = rawSeries.lastOrNull()
         return SleepEegSnapshot(
             selectedChannel = DEFAULT_EEG_CHANNEL,
             selectedLabel = channelLabel(DEFAULT_EEG_CHANNEL),
             sampleRateHz = eegDisplayProcessor.outputSampleRateHz,
-            status = if (series.size < 3) "warming_up" else "ready",
+            status = if (rawSeries.size < 3) "warming_up" else "ready",
             selectedValue = selectedValue,
             signalQuality = packet.signalQuality,
+            rawSeries = rawSeries,
             series = series
         )
     }
