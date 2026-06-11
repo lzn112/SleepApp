@@ -150,6 +150,26 @@ class SleepStorageRepository(
         }
     }
 
+    suspend fun listEpochs(sessionId: String): List<SleepEpochRecord> {
+        return withContext(ioDispatcher) {
+            databaseHelper.readableDatabase.query(
+                SleepStorageDatabaseHelper.TABLE_SLEEP_EPOCH,
+                null,
+                "${SleepStorageDatabaseHelper.COLUMN_SESSION_ID} = ?",
+                arrayOf(sessionId),
+                null,
+                null,
+                "${SleepStorageDatabaseHelper.COLUMN_EPOCH_INDEX} ASC"
+            ).use { cursor ->
+                buildList {
+                    while (cursor.moveToNext()) {
+                        add(cursor.toSleepEpochRecord())
+                    }
+                }
+            }
+        }
+    }
+
     suspend fun upsertFeatureWindows(
         sessionId: String,
         windows: List<SleepFeatureWindowRecord>
@@ -183,6 +203,23 @@ class SleepStorageRepository(
                 summary.toContentValues(),
                 SQLiteDatabase.CONFLICT_REPLACE
             )
+        }
+    }
+
+    suspend fun getNightlySummary(sessionId: String): SleepNightlySummaryRecord? {
+        return withContext(ioDispatcher) {
+            databaseHelper.readableDatabase.query(
+                TABLE_SLEEP_NIGHTLY_SUMMARY,
+                null,
+                "${SleepStorageDatabaseHelper.COLUMN_SESSION_ID} = ?",
+                arrayOf(sessionId),
+                null,
+                null,
+                null
+            ).use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                cursor.toSleepNightlySummaryRecord()
+            }
         }
     }
 
@@ -233,6 +270,24 @@ class SleepStorageRepository(
                 database.setTransactionSuccessful()
             } finally {
                 database.endTransaction()
+            }
+        }
+    }
+
+    suspend fun getLatestAiReport(sessionId: String): SleepAiReportRecord? {
+        return withContext(ioDispatcher) {
+            databaseHelper.readableDatabase.query(
+                TABLE_SLEEP_AI_REPORT,
+                null,
+                "${SleepStorageDatabaseHelper.COLUMN_SESSION_ID} = ?",
+                arrayOf(sessionId),
+                null,
+                null,
+                "${SleepStorageDatabaseHelper.COLUMN_CREATED_AT_EPOCH_MS} DESC",
+                "1"
+            ).use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                cursor.toSleepAiReportRecord()
             }
         }
     }
@@ -516,6 +571,67 @@ class SleepStorageRepository(
     private fun android.database.Cursor.getLongOrNull(columnName: String): Long? {
         val index = getColumnIndexOrThrow(columnName)
         return if (isNull(index)) null else getLong(index)
+    }
+
+    private fun android.database.Cursor.getIntOrNull(columnName: String): Int? {
+        val index = getColumnIndexOrThrow(columnName)
+        return if (isNull(index)) null else getInt(index)
+    }
+
+    private fun android.database.Cursor.getFloatOrNull(columnName: String): Float? {
+        val index = getColumnIndexOrThrow(columnName)
+        return if (isNull(index)) null else getFloat(index)
+    }
+
+    private fun android.database.Cursor.toSleepEpochRecord(): SleepEpochRecord {
+        return SleepEpochRecord(
+            id = getLong(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_EPOCH_ID)),
+            sessionId = getString(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_SESSION_ID)),
+            epochIndex = getInt(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_EPOCH_INDEX)),
+            startAtEpochMs = getLong(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_EPOCH_START_AT_EPOCH_MS)),
+            endAtEpochMs = getLong(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_EPOCH_END_AT_EPOCH_MS)),
+            stage = SleepStage.valueOf(getString(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_STAGE))),
+            confidence = getFloatOrNull(SleepStorageDatabaseHelper.COLUMN_CONFIDENCE),
+            avgSignalQuality = getFloatOrNull(SleepStorageDatabaseHelper.COLUMN_AVG_SIGNAL_QUALITY),
+            source = SleepStageSource.valueOf(getString(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_STAGE_SOURCE))),
+            featuresJson = getStringOrNull(SleepStorageDatabaseHelper.COLUMN_FEATURES_JSON)
+        )
+    }
+
+    private fun android.database.Cursor.toSleepNightlySummaryRecord(): SleepNightlySummaryRecord {
+        return SleepNightlySummaryRecord(
+            summaryId = getString(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_SUMMARY_ID)),
+            sessionId = getString(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_SESSION_ID)),
+            summaryVersion = getStringOrNull(SleepStorageDatabaseHelper.COLUMN_SUMMARY_VERSION),
+            sleepDurationMs = getLongOrNull(SleepStorageDatabaseHelper.COLUMN_SLEEP_DURATION_MS),
+            sleepEfficiency = getFloatOrNull(SleepStorageDatabaseHelper.COLUMN_SLEEP_EFFICIENCY),
+            sleepOnsetLatencyMs = getLongOrNull(SleepStorageDatabaseHelper.COLUMN_SLEEP_ONSET_LATENCY_MS),
+            wakeAfterSleepOnsetMs = getLongOrNull(SleepStorageDatabaseHelper.COLUMN_WAKE_AFTER_SLEEP_ONSET_MS),
+            wakeCount = getIntOrNull(SleepStorageDatabaseHelper.COLUMN_WAKE_COUNT),
+            deepSleepMs = getLongOrNull(SleepStorageDatabaseHelper.COLUMN_DEEP_SLEEP_MS),
+            remSleepMs = getLongOrNull(SleepStorageDatabaseHelper.COLUMN_REM_SLEEP_MS),
+            lightSleepMs = getLongOrNull(SleepStorageDatabaseHelper.COLUMN_LIGHT_SLEEP_MS),
+            awakeMs = getLongOrNull(SleepStorageDatabaseHelper.COLUMN_AWAKE_MS),
+            avgSignalQuality = getFloatOrNull(SleepStorageDatabaseHelper.COLUMN_AVG_SIGNAL_QUALITY),
+            dataQualityScore = getFloatOrNull(SleepStorageDatabaseHelper.COLUMN_DATA_QUALITY_SCORE),
+            generatedAtEpochMs = getLong(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_CREATED_AT_EPOCH_MS)),
+            payloadJson = getStringOrNull(SleepStorageDatabaseHelper.COLUMN_PAYLOAD_JSON)
+        )
+    }
+
+    private fun android.database.Cursor.toSleepAiReportRecord(): SleepAiReportRecord {
+        return SleepAiReportRecord(
+            reportId = getString(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_REPORT_ID)),
+            sessionId = getString(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_SESSION_ID)),
+            reportType = SleepReportType.valueOf(getString(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_REPORT_TYPE))),
+            modelName = getString(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_MODEL_NAME)),
+            promptVersion = getStringOrNull(SleepStorageDatabaseHelper.COLUMN_PROMPT_VERSION),
+            inputSnapshotId = getStringOrNull(SleepStorageDatabaseHelper.COLUMN_INPUT_SNAPSHOT_ID),
+            summaryText = getString(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_SUMMARY_TEXT)),
+            structuredJson = getStringOrNull(SleepStorageDatabaseHelper.COLUMN_STRUCTURED_JSON),
+            confidence = getFloatOrNull(SleepStorageDatabaseHelper.COLUMN_CONFIDENCE),
+            createdAtEpochMs = getLong(getColumnIndexOrThrow(SleepStorageDatabaseHelper.COLUMN_CREATED_AT_EPOCH_MS))
+        )
     }
 
     companion object {

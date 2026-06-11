@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import com.sleepagent.prototype.R
 import com.sleepagent.prototype.data.ActiveSleepSession
 import com.sleepagent.prototype.data.SleepDataSource
+import com.sleepagent.prototype.data.SleepNightlySummaryBuilder
 import com.sleepagent.prototype.data.SleepSessionStatus
 import com.sleepagent.prototype.data.SleepStorageRepository
 import com.sleepagent.prototype.device.BleHeadbandDeviceManager
@@ -32,6 +33,7 @@ import com.sleepagent.prototype.sleep.processing.SleepSignalPipeline
 import com.sleepagent.prototype.sleep.processing.SleepSignalSnapshot
 import com.sleepagent.prototype.sleep.staging.MockSleepStageInferenceEngine
 import com.sleepagent.prototype.sleep.staging.OnnxSleepStageInferenceEngine
+import com.sleepagent.prototype.sleep.staging.SleepStageEpochResult
 import com.sleepagent.prototype.sleep.staging.SleepStageInferenceEngine
 import com.sleepagent.prototype.sleep.staging.SleepStagePipeline
 import com.sleepagent.prototype.sleep.staging.SleepStagePrediction
@@ -91,6 +93,7 @@ class SleepRecordingService : Service() {
     private var signalPipeline = SleepSignalPipeline(snapshotIntervalPackets = 24)
     private val sleepStageInferenceEngine = LazyFallbackSleepStageInferenceEngine { applicationContext }
     private var sleepStagePipeline = SleepStagePipeline(inferenceEngine = sleepStageInferenceEngine)
+    private var lastPersistedStageEpochIndex: Int = -1
 
     override fun onBind(intent: Intent?): IBinder = binder
 
@@ -311,6 +314,7 @@ class SleepRecordingService : Service() {
             sleepStagePipeline.ingest(downsampledEegSample)
         }
         val stageSnapshot = sleepStagePipeline.snapshot()
+        persistStageResultIfNeeded(stageSnapshot.latestResult)
 
         val nextPacketCount = sessionIoMutex.withLock {
             val session = activeSession
@@ -353,6 +357,13 @@ class SleepRecordingService : Service() {
             activeSession = null
             repository.finishSession(session, status)
         } ?: return null
+        if (finishedSession.status == SleepSessionStatus.COMPLETED) {
+            val epochs = repository.listEpochs(finishedSession.sessionId)
+            val summary = SleepNightlySummaryBuilder.build(finishedSession, epochs)
+            if (summary != null) {
+                repository.upsertNightlySummary(summary)
+            }
+        }
         if (finishedSession.packetCount <= 0L) return null
         return runCatching {
             repository.exportSessionBundle(finishedSession).locationHint
@@ -368,6 +379,46 @@ class SleepRecordingService : Service() {
         signalPipeline = SleepSignalPipeline(snapshotIntervalPackets = 24)
         // Re-use the same engine instance — no need to reload the model weights.
         sleepStagePipeline = SleepStagePipeline(inferenceEngine = sleepStageInferenceEngine)
+        lastPersistedStageEpochIndex = -1
+    }
+
+    private suspend fun persistStageResultIfNeeded(
+        result: SleepStageEpochResult?
+    ) {
+        if (result == null) return
+        if (result.epochIndex <= lastPersistedStageEpochIndex) return
+
+        val session = activeSession ?: return
+        if (!_recordingState.value.isRecording) return
+
+        val endAt = result.timestampMillis
+        val startAt = endAt - 30_000L
+
+        val record = com.sleepagent.prototype.data.SleepEpochRecord(
+            sessionId = session.sessionId,
+            epochIndex = result.epochIndex,
+            startAtEpochMs = startAt,
+            endAtEpochMs = endAt,
+            stage = when (result.stage) {
+                com.sleepagent.prototype.sleep.staging.SleepStage.Wake ->
+                    com.sleepagent.prototype.data.SleepStage.AWAKE
+                com.sleepagent.prototype.sleep.staging.SleepStage.Light ->
+                    com.sleepagent.prototype.data.SleepStage.LIGHT
+                com.sleepagent.prototype.sleep.staging.SleepStage.N3 ->
+                    com.sleepagent.prototype.data.SleepStage.DEEP
+                com.sleepagent.prototype.sleep.staging.SleepStage.REM ->
+                    com.sleepagent.prototype.data.SleepStage.REM
+                com.sleepagent.prototype.sleep.staging.SleepStage.Unknown ->
+                    com.sleepagent.prototype.data.SleepStage.UNKNOWN
+            },
+            confidence = result.confidence,
+            avgSignalQuality = null,
+            source = com.sleepagent.prototype.data.SleepStageSource.MODEL,
+            featuresJson = null
+        )
+
+        repository.upsertEpochs(session.sessionId, listOf(record))
+        lastPersistedStageEpochIndex = result.epochIndex
     }
 
     private fun acquireWakeLock() {

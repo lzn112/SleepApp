@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
@@ -81,16 +82,20 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun SleepAgentApp() {
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Home) }
+    var historyScreenVisible by remember { mutableStateOf(false) }
+    var reportSessionId by rememberSaveable { mutableStateOf<String?>(null) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            SleepBottomNavigation(
-                selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it }
-            )
+            if (!historyScreenVisible && reportSessionId == null) {
+                SleepBottomNavigation(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it }
+                )
+            }
         }
     ) { innerPadding ->
         Box(
@@ -105,12 +110,39 @@ fun SleepAgentApp() {
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                when (selectedTab) {
-                    MainTab.Home -> HomeScreen()
-                    MainTab.Dream -> DreamScreen()
-                    MainTab.Sleep -> SleepScreen()
-                    MainTab.Community -> CommunityScreen()
-                    MainTab.Profile -> ProfileScreen()
+                when {
+                    historyScreenVisible -> {
+                        SleepHistoryScreen(
+                            onBackClick = { historyScreenVisible = false },
+                            onSessionClick = { sessionId ->
+                                reportSessionId = sessionId
+                                historyScreenVisible = false
+                            }
+                        )
+                    }
+                    reportSessionId != null -> {
+                        ReportScreenContent(sessionId = reportSessionId)
+                        ReportOverlayBackButton {
+                            reportSessionId = null
+                        }
+                    }
+                    else -> {
+                        when (selectedTab) {
+                            MainTab.Home -> HomeScreen()
+                            MainTab.Dream -> {
+                                SleepHistoryScreen(
+                                    onSessionClick = { sessionId ->
+                                        reportSessionId = sessionId
+                                    }
+                                )
+                            }
+                            MainTab.Sleep -> SleepScreen()
+                            MainTab.Community -> CommunityScreen()
+                            MainTab.Profile -> ProfileScreen(
+                                onHistoryClick = { historyScreenVisible = true }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -588,18 +620,41 @@ private fun SleepPetIllustration() {
 }
 
 @Composable
-private fun DreamScreen() {
-    ReportScreenContent()
-}
-
-@Composable
 private fun CommunityScreen() {
     DiscoverScreenContent()
 }
 
 @Composable
-private fun ProfileScreen() {
-    ProfileScreenContent()
+private fun ProfileScreen(
+    onHistoryClick: () -> Unit = {}
+) {
+    ProfileScreenContent(onHistoryClick = onHistoryClick)
+}
+
+@Composable
+private fun ReportOverlayBackButton(onBackClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.18f),
+            modifier = Modifier
+                .size(40.dp)
+                .clickable { onBackClick() }
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = "返回",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -767,7 +822,7 @@ private fun SleepBottomNavigation(
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                MainTab.values().forEach { tab ->
+                MainTab.entries.forEach { tab ->
                     StandardBottomNavItem(
                         tab = tab,
                         selected = selectedTab == tab,
