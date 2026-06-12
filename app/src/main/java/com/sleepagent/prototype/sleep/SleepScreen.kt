@@ -1,4 +1,4 @@
-﻿package com.sleepagent.prototype.sleep
+package com.sleepagent.prototype.sleep
 
 import android.Manifest
 import android.content.ComponentName
@@ -15,21 +15,25 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -56,7 +61,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.sleepagent.prototype.ScreenContainer
 import com.sleepagent.prototype.data.SleepSessionStatus
 import com.sleepagent.prototype.device.DeviceConnectionState
 import com.sleepagent.prototype.device.HeadbandDevice
@@ -428,66 +432,60 @@ private fun SleepSetupScreen(
         ?: if (connectionState == DeviceConnectionState.CONNECTED) "设备已连接，可开始睡眠。" else "先扫描并连接设备。"
 
     ScreenContainer(
-        title = "睡眠",
-        subtitle = "先连设备，再开始睡眠。"
+        title = "今晚准备睡觉",
+        subtitle = "我会帮你检查设备，并陪你进入睡眠状态。"
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("运行模式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        FilterChip(selected = !useMockManager, onClick = { onUseMockManagerChange(false) }, label = { Text("Real BLE") })
-                        FilterChip(selected = useMockManager, onClick = { onUseMockManagerChange(true) }, label = { Text("Mock") })
-                    }
-                    Text(
-                        text = if (useMockManager) "当前使用 Mock 设备。" else "当前使用真实 BLE 设备。",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-
-            DeviceActionCard(
+            // 1. Sleep Prepare Hero
+            SleepPrepareHeroCard(
                 connectionState = connectionState,
+                connectedDeviceName = deviceStatus.connectedDevice?.name,
                 isStartingSleep = isStartingSleep,
                 isRecording = isRecording,
+                onStartSleep = onStartSleep
+            )
+
+            // 2. Device Readiness
+            DeviceReadinessCard(
+                connectionState = connectionState,
                 hasPermissions = hasPermissions,
                 selectedDeviceName = selectedDevice?.name,
                 connectedDeviceName = deviceStatus.connectedDevice?.name,
                 statusMessage = statusMessage,
                 onScan = onScan,
-                onStartSleep = onStartSleep,
-                onStopSleep = onStopSleep,
-                onDisconnect = onDisconnect,
-                onRequestPermissions = onRequestPermissions
+                onRequestPermissions = onRequestPermissions,
+                onDisconnect = onDisconnect
             )
 
+            // 3. Device List (lightweight)
             if (scannedDevices.isNotEmpty()) {
-                Card(
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text("设备列表", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        scannedDevices.forEach { device ->
-                            DeviceRow(
-                                device = device,
-                                selected = selectedDeviceId == device.deviceId,
-                                connected = deviceStatus.connectedDevice?.deviceId == device.deviceId,
-                                onClick = { onConnectDevice(device) }
-                            )
-                        }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "已发现设备",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White.copy(alpha = 0.55f)
+                    )
+                    scannedDevices.forEach { device ->
+                        DeviceRow(
+                            device = device,
+                            selected = selectedDeviceId == device.deviceId,
+                            connected = deviceStatus.connectedDevice?.deviceId == device.deviceId,
+                            onClick = { onConnectDevice(device) }
+                        )
                     }
                 }
             }
+
+            // 4. Advanced Debug (downgraded)
+            AdvancedDebugSection(
+                useMockManager = useMockManager,
+                onUseMockManagerChange = onUseMockManagerChange,
+                connectionDiagnostics = deviceStatus.connectionDiagnostics,
+                scanDiagnostics = deviceStatus.scanDiagnostics,
+                lastConnectionError = deviceStatus.lastConnectionError,
+                lastScanError = deviceStatus.lastScanError
+            )
         }
     }
 }
@@ -527,206 +525,774 @@ private fun SleepMonitorScreen(
     val statusMessage = uiMessage ?: deviceStatus.message ?: signalState
 
     ScreenContainer(
-        title = "睡眠监测",
-        subtitle = "实时查看 EEG 和光学信号。"
+        title = "正在守护你的睡眠",
+        subtitle = "设备连接稳定，明早会为你生成睡眠复盘。"
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // Error banner
             if (!uiMessage.isNullOrBlank()) {
-                Card(
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.errorContainer
                 ) {
                     Text(
                         text = uiMessage,
-                        modifier = Modifier.fillMaxWidth().padding(18.dp),
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                 }
             }
 
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            // 1. Sleep Guard Hero
+            SleepGuardHeroCard(
+                connectionState = connectionState,
+                statusMessage = statusMessage,
+                onEndSleep = onEndSleep
+            )
+
+            // 2. Real-time sleep stage (lightweight strip)
+            SleepStageStrip(snapshot = sleepStageSnapshot)
+
+            // 3. Return to setup (secondary)
+            Surface(
+                onClick = onBack,
+                shape = RoundedCornerShape(16.dp),
+                color = Color.White.copy(alpha = 0.06f),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("当前会话", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = sessionId ?: "未生成会话",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        StatusBadge(
-                            text = if (connectionState == DeviceConnectionState.CONNECTED) "已连接" else "连接异常",
-                            color = if (connectionState == DeviceConnectionState.CONNECTED) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                        )
-                    }
-
-                    Text(text = "设备: ${deviceStatus.connectedDevice?.name ?: "未知设备"}", style = MaterialTheme.typography.bodyMedium)
-                    Text(text = "状态: $statusMessage", style = MaterialTheme.typography.bodyMedium)
-                    Text(text = "光学模式: ${deviceStatus.opticalMode.label}", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        text = if (deviceStatus.tdcs.active) {
-                            "电刺激: 运行中 (${deviceStatus.tdcs.channel}, ${deviceStatus.tdcs.current}mA, amp=${deviceStatus.tdcs.amplitude})"
-                        } else {
-                            "电刺激: 已停止"
-                        },
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(text = "采样包数: $packetCount", style = MaterialTheme.typography.bodyMedium)
-                }
+                Text(
+                    "返回准备页",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.48f),
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
+                )
             }
 
-            SleepStageSimpleCard(snapshot = sleepStageSnapshot)
-
-            OpticalModeCard(
-                selectedMode = deviceStatus.opticalMode,
-                onSelectMode = onOpticalModeChange
+            // 3. Advanced Signal (collapsible EEG / HRV / fNIRS)
+            AdvancedSignalCardsSection(
+                signalSnapshot = signalSnapshot,
+                deviceStatus = deviceStatus,
+                hrvChannel = hrvChannel,
+                fnirsChannel = fnirsChannel,
+                onHrvChannelChange = onHrvChannelChange,
+                onFnirsChannelChange = onFnirsChannelChange
             )
 
-            SingleChannelWaveSection(
-                title = "EEG 实时波形（CH6）",
-                points = signalSnapshot.eeg.rawSeries.ifEmpty { signalSnapshot.eeg.series },
-                lineColor = MaterialTheme.colorScheme.primary,
-                description = "CH6 / 100 Hz / 原始波形。"
-            )
-
-            when (deviceStatus.opticalMode) {
-                SleepOpticalMode.HRV -> HrvSignalSection(
-                    selectedChannel = hrvChannel,
-                    onSelectChannel = { channel ->
-                        hrvChannel = channel
-                        onHrvChannelChange(channel)
-                    },
-                    snapshot = signalSnapshot.hrv
-                )
-                SleepOpticalMode.FNIRS -> FnirsSignalSection(
-                    selectedChannel = fnirsChannel,
-                    onSelectChannel = { channel ->
-                        fnirsChannel = channel
-                        onFnirsChannelChange(channel)
-                    },
-                    snapshot = signalSnapshot.fnirs
-                )
-                SleepOpticalMode.OFF -> Card(
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-                ) {
-                    Text(
-                        text = "光学通路已关闭",
-                        modifier = Modifier.padding(18.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text("返回设置") }
-                Button(onClick = onEndSleep, modifier = Modifier.weight(1f)) { Text("结束睡眠") }
-            }
-
-            TdcsControlCard(
+            // 4. Debug (collapsible: session, packet, optical, tDCS)
+            CollapsedDebugSection(
+                sessionId = sessionId,
+                packetCount = packetCount,
+                opticalMode = deviceStatus.opticalMode,
                 tdcsState = deviceStatus.tdcs,
-                boostText = tdcsBoostText,
-                onBoostTextChange = { tdcsBoostText = it },
-                currentText = tdcsCurrentText,
-                onCurrentTextChange = { tdcsCurrentText = it },
-                amplitudeText = tdcsAmplitudeText,
-                onAmplitudeTextChange = { tdcsAmplitudeText = it },
-                inputMessage = tdcsInputMessage,
-                onStart = {
-                    val boost = tdcsBoostText.toIntOrNull()
-                    val current = tdcsCurrentText.toIntOrNull()
-                    val amplitude = tdcsAmplitudeText.toIntOrNull()
-                    if (boost == null || current == null || amplitude == null) {
-                        tdcsInputMessage = "电刺激参数必须是数字。"
-                    } else {
-                        tdcsInputMessage = null
-                        onStartTdcs(
-                            TdcsConfig(
-                                boost = boost,
-                                current = current,
-                                amplitude = amplitude
-                            )
-                        )
-                    }
-                },
-                onStop = {
-                    tdcsInputMessage = null
-                    onStopTdcs(TDCS_DEFAULT_CHANNEL)
-                }
+                tdcsBoostText = tdcsBoostText,
+                onTdcsBoostTextChange = { tdcsBoostText = it },
+                tdcsCurrentText = tdcsCurrentText,
+                onTdcsCurrentTextChange = { tdcsCurrentText = it },
+                tdcsAmplitudeText = tdcsAmplitudeText,
+                onTdcsAmplitudeTextChange = { tdcsAmplitudeText = it },
+                tdcsInputMessage = tdcsInputMessage,
+                onOpticalModeChange = onOpticalModeChange,
+                onStartTdcs = { config -> onStartTdcs(config) },
+                onStopTdcs = { onStopTdcs(TDCS_DEFAULT_CHANNEL) }
             )
         }
     }
 }
 
+// ── Setup Composables ──
+
 @Composable
-private fun DeviceActionCard(
+private fun SleepPrepareHeroCard(
     connectionState: DeviceConnectionState,
+    connectedDeviceName: String?,
     isStartingSleep: Boolean,
     isRecording: Boolean,
+    onStartSleep: () -> Unit
+) {
+    val isReady = connectionState == DeviceConnectionState.CONNECTED
+    Surface(
+        shape = RoundedCornerShape(32.dp),
+        color = Color.White.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "今晚准备睡觉",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White.copy(alpha = 0.94f)
+            )
+            Text(
+                "预计起床 07:30 · 智能唤醒 07:00-07:30",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.66f)
+            )
+            Text(
+                "推荐睡前流程：呼吸放松 8 分钟",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.66f)
+            )
+
+            Button(
+                onClick = onStartSleep,
+                enabled = isReady && !isStartingSleep,
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF6C8CFF),
+                    contentColor = Color.White,
+                    disabledContainerColor = Color.White.copy(alpha = 0.08f),
+                    disabledContentColor = Color.White.copy(alpha = 0.30f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = when {
+                        isStartingSleep -> "准备中..."
+                        isRecording -> "正在监测中"
+                        !isReady -> "请先连接设备"
+                        else -> "开始睡觉"
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceReadinessCard(
+    connectionState: DeviceConnectionState,
     hasPermissions: Boolean,
     selectedDeviceName: String?,
     connectedDeviceName: String?,
     statusMessage: String?,
     onScan: () -> Unit,
-    onStartSleep: () -> Unit,
-    onStopSleep: () -> Unit,
-    onDisconnect: () -> Unit,
-    onRequestPermissions: () -> Unit
+    onRequestPermissions: () -> Unit,
+    onDisconnect: () -> Unit
 ) {
-    Card(
+    val isConnected = connectionState == DeviceConnectionState.CONNECTED
+    val deviceName = connectedDeviceName ?: selectedDeviceName
+    Surface(
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+        color = Color.White.copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text("操作", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(
-                text = "设备: ${connectedDeviceName ?: selectedDeviceName ?: "-"}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "设备准备",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White.copy(alpha = 0.72f)
+                )
+                StatusBadge(
+                    text = if (isConnected) "已连接" else "未连接",
+                    color = if (isConnected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.30f)
+                )
+            }
+
+            if (isConnected && deviceName != null) {
+                Text(
+                    "$deviceName 已连接",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.94f)
+                )
+                Text(
+                    "信号准备中，今晚可以开始监测。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.55f)
+                )
+            } else {
+                Text(
+                    "头环未连接",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.94f)
+                )
+                Text(
+                    "睡前请先连接设备，确保整晚监测稳定。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.55f)
+                )
+            }
+
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (hasPermissions) {
-                    Button(onClick = onScan) { Text("扫描设备") }
+                    Button(
+                        onClick = onScan,
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF6C8CFF),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(
+                            "查找头环",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 } else {
-                    Button(onClick = onRequestPermissions) { Text("授予权限") }
+                    Button(
+                        onClick = onRequestPermissions,
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF6B6B),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("授予权限")
+                    }
                 }
-                Button(
-                    onClick = onStartSleep,
-                    enabled = connectionState == DeviceConnectionState.CONNECTED && !isStartingSleep
-                ) {
-                    Text(
-                        when {
-                            isStartingSleep -> "启动中..."
-                            isRecording -> "监测中"
-                            else -> "开始睡眠"
-                        }
-                    )
+                if (isConnected) {
+                    Surface(
+                        onClick = onDisconnect,
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.White.copy(alpha = 0.06f)
+                    ) {
+                        Text(
+                            "断开设备",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White.copy(alpha = 0.50f),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                        )
+                    }
                 }
             }
+
+            statusMessage?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.40f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdvancedDebugSection(
+    useMockManager: Boolean,
+    onUseMockManagerChange: (Boolean) -> Unit,
+    connectionDiagnostics: List<String>,
+    scanDiagnostics: List<String>,
+    lastConnectionError: String?,
+    lastScanError: String?
+) {
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = Color.White.copy(alpha = 0.06f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Text(
-                text = "状态: ${statusMessage ?: "-"}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                "高级模式",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White.copy(alpha = 0.38f)
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = onStopSleep, enabled = isRecording) { Text("结束睡眠") }
-                OutlinedButton(onClick = onDisconnect) { Text("断开设备") }
+                FilterChip(
+                    selected = !useMockManager,
+                    onClick = { onUseMockManagerChange(false) },
+                    label = { Text("Real BLE", style = MaterialTheme.typography.labelSmall) }
+                )
+                FilterChip(
+                    selected = useMockManager,
+                    onClick = { onUseMockManagerChange(true) },
+                    label = { Text("Mock", style = MaterialTheme.typography.labelSmall) }
+                )
+            }
+            if (connectionDiagnostics.isNotEmpty()) {
+                Text(
+                    "连接诊断: ${connectionDiagnostics.joinToString(" · ")}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.26f)
+                )
+            }
+            if (scanDiagnostics.isNotEmpty()) {
+                Text(
+                    "扫描诊断: ${scanDiagnostics.joinToString(" · ")}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.26f)
+                )
+            }
+            if (lastConnectionError != null) {
+                Text(
+                    "连接错误: $lastConnectionError",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFFFF6B6B).copy(alpha = 0.50f)
+                )
+            }
+            if (lastScanError != null) {
+                Text(
+                    "扫描错误: $lastScanError",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFFFF6B6B).copy(alpha = 0.50f)
+                )
+            }
+        }
+    }
+}
+
+// ── Monitor Composables ──
+
+@Composable
+private fun SleepGuardHeroCard(
+    connectionState: DeviceConnectionState,
+    statusMessage: String?,
+    onEndSleep: () -> Unit
+) {
+    val isStable = connectionState == DeviceConnectionState.CONNECTED
+    Surface(
+        shape = RoundedCornerShape(32.dp),
+        color = Color.White.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "正在守护你的睡眠",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.94f)
+                )
+                StatusBadge(
+                    text = if (isStable) "连接稳定" else "连接异常",
+                    color = if (isStable) Color(0xFF6C8CFF) else Color(0xFFFF6B6B)
+                )
+            }
+
+            Text(
+                if (isStable) "监测已开启，明早为你生成睡眠复盘。"
+                else "设备连接异常，正在尝试恢复...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.62f)
+            )
+
+            statusMessage?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.44f))
+            }
+
+            Button(
+                onClick = onEndSleep,
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFFF6B6B).copy(alpha = 0.12f),
+                    contentColor = Color(0xFFFF6B6B)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "结束睡眠",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+// ── Real-time Sleep Stage Strip ──
+
+@Composable
+private fun SleepStageStrip(snapshot: SleepStageSnapshot) {
+    val stageLabel = snapshot.currentStage.label
+    val recentStages = snapshot.hypnogram.takeLast(8)
+
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White.copy(alpha = 0.06f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    "当前睡眠状态",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.40f)
+                )
+                Text(
+                    "$stageLabel 中",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF6C8CFF)
+                )
+            }
+
+            if (recentStages.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    recentStages.forEach { result ->
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(
+                                    Color(0xFF6C8CFF).copy(alpha = 0.35f),
+                                    CircleShape
+                                )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Collapsible Signal Card ──
+
+@Composable
+private fun CollapsibleSignalCard(
+    title: String,
+    subtitle: String,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    content: @Composable () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White.copy(alpha = 0.06f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandedChange(!expanded) }
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White.copy(alpha = 0.62f)
+                    )
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.38f)
+                    )
+                }
+                Text(
+                    if (expanded) "收起" else "展开",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF6C8CFF).copy(alpha = 0.70f)
+                )
+            }
+            if (expanded) {
+                content()
+            }
+        }
+    }
+}
+
+// ── Advanced Signal Cards Section (EEG / HRV / fNIRS) ──
+
+@Composable
+private fun AdvancedSignalCardsSection(
+    signalSnapshot: SleepSignalSnapshot,
+    deviceStatus: SleepDeviceUiStatus,
+    hrvChannel: Int,
+    fnirsChannel: Int,
+    onHrvChannelChange: (Int) -> Unit,
+    onFnirsChannelChange: (Int) -> Unit
+) {
+    var eegExpanded by rememberSaveable { mutableStateOf(false) }
+    var hrvExpanded by rememberSaveable { mutableStateOf(false) }
+    var fnirsExpanded by rememberSaveable { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "高级信号",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White.copy(alpha = 0.44f)
+        )
+        Text(
+            "仅在需要查看原始信号时展开",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White.copy(alpha = 0.30f)
+        )
+
+        CollapsibleSignalCard(
+            title = "EEG",
+            subtitle = "脑电信号",
+            expanded = eegExpanded,
+            onExpandedChange = { eegExpanded = it }
+        ) {
+            SingleChannelWaveSection(
+                title = "EEG 波形",
+                points = signalSnapshot.eeg.rawSeries.ifEmpty { signalSnapshot.eeg.series },
+                lineColor = Color(0xFF6C8CFF),
+                description = "100 Hz 原始波形"
+            )
+        }
+
+        CollapsibleSignalCard(
+            title = "HRV",
+            subtitle = "心率变异信号",
+            expanded = hrvExpanded,
+            onExpandedChange = { hrvExpanded = it }
+        ) {
+            if (deviceStatus.opticalMode == SleepOpticalMode.HRV) {
+                HrvSignalSection(
+                    selectedChannel = hrvChannel,
+                    onSelectChannel = { channel -> onHrvChannelChange(channel) },
+                    snapshot = signalSnapshot.hrv
+                )
+            } else {
+                Text(
+                    "HRV 数据准备中，请先切换到 HRV 光学模式。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.36f)
+                )
+            }
+        }
+
+        CollapsibleSignalCard(
+            title = "fNIRS",
+            subtitle = "近红外信号",
+            expanded = fnirsExpanded,
+            onExpandedChange = { fnirsExpanded = it }
+        ) {
+            if (deviceStatus.opticalMode == SleepOpticalMode.FNIRS) {
+                FnirsSignalSection(
+                    selectedChannel = fnirsChannel,
+                    onSelectChannel = { channel -> onFnirsChannelChange(channel) },
+                    snapshot = signalSnapshot.fnirs
+                )
+            } else {
+                Text(
+                    "fNIRS 数据准备中，请先切换到 fNIRS 光学模式。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.36f)
+                )
+            }
+        }
+    }
+}
+
+// ── Collapsed Debug Section ──
+
+@Composable
+private fun CollapsedDebugSection(
+    sessionId: String?,
+    packetCount: Long,
+    opticalMode: SleepOpticalMode,
+    tdcsState: TdcsState,
+    tdcsBoostText: String,
+    onTdcsBoostTextChange: (String) -> Unit,
+    tdcsCurrentText: String,
+    onTdcsCurrentTextChange: (String) -> Unit,
+    tdcsAmplitudeText: String,
+    onTdcsAmplitudeTextChange: (String) -> Unit,
+    tdcsInputMessage: String?,
+    onOpticalModeChange: (SleepOpticalMode) -> Unit,
+    onStartTdcs: (TdcsConfig) -> Unit,
+    onStopTdcs: () -> Unit
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White.copy(alpha = 0.06f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "高级调试",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White.copy(alpha = 0.38f)
+                    )
+                    Text(
+                        "仅供调试与研究使用",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.26f)
+                    )
+                }
+                Text(
+                    if (expanded) "收起" else "展开",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.40f)
+                )
+            }
+
+            if (expanded) {
+                Column(
+                    modifier = Modifier.padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        Text("会话: ${sessionId?.take(8) ?: "未生成"}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.30f))
+                        Text("数据包: $packetCount", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.30f))
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        Text("光学模式: ${opticalMode.label}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.30f))
+                        Text(
+                            if (tdcsState.active) "电刺激: 运行中" else "电刺激: 已停止",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.30f)
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(SleepOpticalMode.HRV, SleepOpticalMode.FNIRS, SleepOpticalMode.OFF).forEach { mode ->
+                            FilterChip(
+                                selected = opticalMode == mode,
+                                onClick = { onOpticalModeChange(mode) },
+                                label = { Text(mode.label, style = MaterialTheme.typography.labelSmall) }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // tDCS controls (inside debug)
+                    Text(
+                        "研究者控制",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White.copy(alpha = 0.38f)
+                    )
+                    Text(
+                        "仅用于调试/研究，请确认参数后再操作。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFFFF6B6B).copy(alpha = 0.45f)
+                    )
+                    Text(
+                        if (tdcsState.active) {
+                            "状态: 运行中 | boost=${tdcsState.boost}mA, current=${tdcsState.current}, amplitude=${tdcsState.amplitude}"
+                        } else {
+                            "状态: 已停止"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.32f)
+                    )
+                    if (!tdcsInputMessage.isNullOrBlank()) {
+                        Text(tdcsInputMessage, style = MaterialTheme.typography.labelSmall, color = Color(0xFFFF6B6B))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = tdcsBoostText,
+                            onValueChange = onTdcsBoostTextChange,
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Boost") },
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = tdcsCurrentText,
+                            onValueChange = onTdcsCurrentTextChange,
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Current") },
+                            singleLine = true
+                        )
+                    }
+                    OutlinedTextField(
+                        value = tdcsAmplitudeText,
+                        onValueChange = onTdcsAmplitudeTextChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Amplitude") },
+                        singleLine = true
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Surface(
+                            onClick = {
+                                val boost = tdcsBoostText.toIntOrNull()
+                                val current = tdcsCurrentText.toIntOrNull()
+                                val amplitude = tdcsAmplitudeText.toIntOrNull()
+                                if (boost != null && current != null && amplitude != null) {
+                                    onStartTdcs(TdcsConfig(boost = boost, current = current, amplitude = amplitude))
+                                }
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFFFF6B6B).copy(alpha = 0.12f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                "开启",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFFF6B6B),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                            )
+                        }
+                        Surface(
+                            onClick = onStopTdcs,
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color.White.copy(alpha = 0.06f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                "关闭",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White.copy(alpha = 0.50f),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -744,9 +1310,9 @@ private fun DeviceRow(
             .fillMaxWidth()
             .background(
                 color = when {
-                    connected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
-                    selected -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f)
-                    else -> MaterialTheme.colorScheme.surface
+                    connected -> Color(0xFF6C8CFF).copy(alpha = 0.16f)
+                    selected -> Color.White.copy(alpha = 0.10f)
+                    else -> Color.White.copy(alpha = 0.06f)
                 },
                 shape = RoundedCornerShape(16.dp)
             )
@@ -759,7 +1325,7 @@ private fun DeviceRow(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(device.name, fontWeight = FontWeight.SemiBold)
+                Text(device.name, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.94f))
                 StatusBadge(
                     text = when {
                         connected -> "已连接"
@@ -767,14 +1333,14 @@ private fun DeviceRow(
                         else -> "点击连接"
                     },
                     color = when {
-                        connected -> MaterialTheme.colorScheme.primary
-                        selected -> MaterialTheme.colorScheme.secondary
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        connected -> Color(0xFF6C8CFF)
+                        selected -> Color.White.copy(alpha = 0.50f)
+                        else -> Color.White.copy(alpha = 0.36f)
                     }
                 )
             }
-            Text("RSSI: ${device.rssi}", style = MaterialTheme.typography.bodySmall)
-            Text(device.address, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("RSSI: ${device.rssi}", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.50f))
+            Text(device.address, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.38f))
         }
     }
 }
@@ -908,167 +1474,6 @@ private fun FnirsSignalSection(
                 hbrColor = MaterialTheme.colorScheme.tertiary,
                 emptyLabel = "等待 fNIRS 数据"
             )
-        }
-    }
-}
-
-@Composable
-private fun SleepStageSimpleCard(snapshot: SleepStageSnapshot) {
-    val secondsBuffered = snapshot.bufferedSamples / snapshot.sampleRateHz.coerceAtLeast(1)
-    val confidenceText = snapshot.latestResult?.let { "置信度 ${(it.confidence * 100).toInt()}%" } ?: "置信度 --"
-    val recentStages = snapshot.hypnogram.takeLast(8)
-
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("实时睡眠分期", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(
-                text = snapshot.currentStage.label,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = confidenceText,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = snapshot.status,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = "窗口进度 $secondsBuffered / 30 秒",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            LinearProgressIndicator(
-                progress = { snapshot.epochProgress },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (recentStages.isEmpty()) {
-                    Text("暂无", style = MaterialTheme.typography.bodyMedium)
-                } else {
-                    recentStages.forEach { result ->
-                        Text(
-                            text = result.stage.shortLabel,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun OpticalModeCard(
-    selectedMode: SleepOpticalMode,
-    onSelectMode: (SleepOpticalMode) -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("光学模式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(SleepOpticalMode.HRV, SleepOpticalMode.FNIRS, SleepOpticalMode.OFF).forEach { mode ->
-                    FilterChip(
-                        selected = selectedMode == mode,
-                        onClick = { onSelectMode(mode) },
-                        label = { Text(mode.label) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TdcsControlCard(
-    tdcsState: TdcsState,
-    boostText: String,
-    onBoostTextChange: (String) -> Unit,
-    currentText: String,
-    onCurrentTextChange: (String) -> Unit,
-    amplitudeText: String,
-    onAmplitudeTextChange: (String) -> Unit,
-    inputMessage: String?,
-    onStart: () -> Unit,
-    onStop: () -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("电刺激控制", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(
-                text = if (tdcsState.active) {
-                    "状态: 运行中 | boost=${tdcsState.boost}, current=${tdcsState.current}, amplitude=${tdcsState.amplitude}, channel=${tdcsState.channel}"
-                } else {
-                    "状态: 已停止"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            if (!inputMessage.isNullOrBlank()) {
-                Text(
-                    text = inputMessage,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = boostText,
-                    onValueChange = onBoostTextChange,
-                    modifier = Modifier.weight(1f),
-                    label = { Text("Boost") },
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = currentText,
-                    onValueChange = onCurrentTextChange,
-                    modifier = Modifier.weight(1f),
-                    label = { Text("Current") },
-                    singleLine = true
-                )
-            }
-
-            OutlinedTextField(
-                value = amplitudeText,
-                onValueChange = onAmplitudeTextChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Amplitude") },
-                singleLine = true
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onStart, modifier = Modifier.weight(1f)) {
-                    Text("开启电刺激")
-                }
-                OutlinedButton(onClick = onStop, modifier = Modifier.weight(1f)) {
-                    Text("关闭电刺激")
-                }
-            }
         }
     }
 }
@@ -1565,4 +1970,55 @@ private fun runtimePermissionsForBle(): List<String> {
         permissions += Manifest.permission.POST_NOTIFICATIONS
     }
     return permissions
+}
+
+@Composable
+private fun ScreenContainer(
+    title: String,
+    subtitle: String,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF10172A),
+                        Color(0xFF0B1020),
+                        Color(0xFF070B16)
+                    )
+                )
+            )
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                end = 20.dp,
+                top = 24.dp,
+                bottom = 140.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White.copy(alpha = 0.94f)
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.68f)
+                    )
+                }
+            }
+            item {
+                content()
+            }
+        }
+    }
 }

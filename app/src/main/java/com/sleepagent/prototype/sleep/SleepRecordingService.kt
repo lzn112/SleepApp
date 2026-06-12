@@ -476,13 +476,13 @@ class SleepRecordingService : Service() {
     private fun buildNotification(): Notification {
         val packetCount = _recordingState.value.packetCount
         val text = if (_recordingState.value.isRecording) {
-            "正在采集睡眠数据，已记录 $packetCount 包"
+            "监测已开启，明早为你生成睡眠复盘。"
         } else {
-            "正在准备睡眠采集"
+            "正在准备睡眠守护..."
         }
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("SleepAgent 睡眠采集")
+            .setContentTitle("SleepAgent 正在守护你的睡眠")
             .setContentText(text)
             .setOngoing(_recordingState.value.isRecording)
             .setOnlyAlertOnce(true)
