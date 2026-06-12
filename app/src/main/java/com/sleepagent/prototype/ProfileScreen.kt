@@ -1,6 +1,5 @@
 package com.sleepagent.prototype
 
-import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,8 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -27,18 +29,23 @@ import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,9 +59,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.sleepagent.prototype.data.MockDataGenerator
 import com.sleepagent.prototype.data.SleepStorageRepository
-import com.sleepagent.prototype.data.UserPreferences
 import com.sleepagent.prototype.ui.theme.SleepAgentPrototypeTheme
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 // ── Section row data ──
 
@@ -64,6 +71,32 @@ private data class SectionRow(
     val icon: ImageVector? = null,
     val onClick: () -> Unit = {}
 )
+
+// ── Editable UI state ──
+
+private data class UserProfileUiState(
+    val nickname: String = "用户昵称",
+    val gender: String = "未设置",
+    val ageRange: String = "未设置",
+    val currentGoal: String = "更快入睡"
+)
+
+private data class SleepPreferenceUiState(
+    val targetSleepHours: Float = 7.5f,
+    val defaultBedtime: String = "23:30",
+    val defaultWakeTime: String = "07:30",
+    val bedtimeReminder: String = "23:00",
+    val smartWakeEnabled: Boolean = true,
+    val soundAidPreferences: Set<String> = setOf("呼吸放松", "白噪音"),
+    val aiCompanionEnabled: Boolean = true
+)
+
+// ── Goal options ──
+
+private val goalOptions = listOf("更快入睡", "减少夜醒", "规律作息", "提升恢复感", "减少熬夜", "稳定起床时间")
+private val genderOptions = listOf("男", "女", "不想填写")
+private val ageRangeOptions = listOf("18-25", "26-35", "36-45", "46+")
+private val soundAidOptions = listOf("呼吸放松", "白噪音", "雨声", "海浪", "睡前故事")
 
 // ── Main entry ──
 
@@ -76,6 +109,58 @@ fun ProfileScreenContent(
     val repository = remember { SleepStorageRepository(context) }
     val generator = remember { MockDataGenerator(repository) }
 
+    var profileState by rememberSaveable { mutableStateOf(UserProfileUiState()) }
+    var preferenceState by rememberSaveable { mutableStateOf(SleepPreferenceUiState()) }
+    var showEditProfile by rememberSaveable { mutableStateOf(false) }
+    var showEditPreference by rememberSaveable { mutableStateOf(false) }
+
+    when {
+        showEditProfile -> {
+            EditProfileSheet(
+                profile = profileState,
+                onDismiss = { showEditProfile = false },
+                onSave = {
+                    profileState = it
+                    showEditProfile = false
+                }
+            )
+        }
+
+        showEditPreference -> {
+            SleepPreferenceEditSheet(
+                preference = preferenceState,
+                onDismiss = { showEditPreference = false },
+                onSave = {
+                    preferenceState = it
+                    showEditPreference = false
+                }
+            )
+        }
+
+        else -> ProfileMainContent(
+            profileState = profileState,
+            preferenceState = preferenceState,
+            onEditProfile = { showEditProfile = true },
+            onEditPreference = { showEditPreference = true },
+            onHistoryClick = onHistoryClick,
+            scope = scope,
+            context = context,
+            generator = generator
+        )
+    }
+}
+
+@Composable
+private fun ProfileMainContent(
+    profileState: UserProfileUiState,
+    preferenceState: SleepPreferenceUiState,
+    onEditProfile: () -> Unit,
+    onEditPreference: () -> Unit,
+    onHistoryClick: () -> Unit,
+    scope: kotlinx.coroutines.CoroutineScope,
+    context: android.content.Context,
+    generator: MockDataGenerator
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -110,13 +195,13 @@ fun ProfileScreenContent(
             }
 
             // ── 1. Profile Hero Card ──
-            item { ProfileHeroCard() }
+            item { ProfileHeroCard(profile = profileState, onEdit = onEditProfile) }
 
             // ── 2. My Device Card ──
             item { MyDeviceCard() }
 
             // ── 3. Sleep Preferences ──
-            item { SleepPreferenceSection() }
+            item { SleepPreferenceSection(preference = preferenceState, onEdit = onEditPreference) }
 
             // ── 4. Data & Reports ──
             item { DataReportSection(onHistoryClick = onHistoryClick) }
@@ -135,9 +220,9 @@ fun ProfileScreenContent(
                 Surface(
                     onClick = {
                         scope.launch {
-                            Toast.makeText(context, "正在生成演示数据...", Toast.LENGTH_SHORT).show()
+                            android.widget.Toast.makeText(context, "正在生成演示数据...", android.widget.Toast.LENGTH_SHORT).show()
                             generator.generateLastSevenDays()
-                            Toast.makeText(context, "演示数据生成成功！", Toast.LENGTH_SHORT).show()
+                            android.widget.Toast.makeText(context, "演示数据生成成功！", android.widget.Toast.LENGTH_SHORT).show()
                         }
                     },
                     shape = RoundedCornerShape(20.dp),
@@ -159,12 +244,10 @@ fun ProfileScreenContent(
 // ── 1. Profile Hero Card ──
 
 @Composable
-private fun ProfileHeroCard() {
-    val context = LocalContext.current
-    var displayName by remember { mutableStateOf(UserPreferences.getDisplayName(context)) }
-    var showEditDialog by remember { mutableStateOf(false) }
-    var editText by remember { mutableStateOf("") }
-
+private fun ProfileHeroCard(
+    profile: UserProfileUiState,
+    onEdit: () -> Unit
+) {
     Surface(
         shape = RoundedCornerShape(32.dp),
         color = Color.White.copy(alpha = 0.08f),
@@ -194,16 +277,11 @@ private fun ProfileHeroCard() {
                     )
                 }
                 Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable {
-                            editText = displayName
-                            showEditDialog = true
-                        },
+                    modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        displayName,
+                        profile.nickname,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color.White.copy(alpha = 0.94f)
@@ -214,7 +292,7 @@ private fun ProfileHeroCard() {
                         color = Color.White.copy(alpha = 0.52f)
                     )
                     Text(
-                        "当前目标：更快入睡",
+                        "当前目标：${profile.currentGoal}",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFF6C8CFF).copy(alpha = 0.70f)
                     )
@@ -229,22 +307,19 @@ private fun ProfileHeroCard() {
                     .background(Color.White.copy(alpha = 0.06f))
             )
 
-            // Improvement stat
+            // Edit button row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "本周入睡时间减少 9 分钟",
+                    if (profile.gender != "未设置") "${profile.gender} · ${profile.ageRange}" else "完善信息，获得更个性化建议",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White.copy(alpha = 0.68f)
                 )
                 Surface(
-                    onClick = {
-                        editText = displayName
-                        showEditDialog = true
-                    },
+                    onClick = onEdit,
                     shape = RoundedCornerShape(14.dp),
                     color = Color(0xFF6C8CFF).copy(alpha = 0.12f)
                 ) {
@@ -258,40 +333,6 @@ private fun ProfileHeroCard() {
                 }
             }
         }
-    }
-
-    // Edit dialog
-    if (showEditDialog) {
-        AlertDialog(
-            onDismissRequest = { showEditDialog = false },
-            title = { Text("修改昵称") },
-            text = {
-                OutlinedTextField(
-                    value = editText,
-                    onValueChange = { editText = it },
-                    singleLine = true,
-                    label = { Text("昵称") }
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val newName = editText.trim().ifBlank { return@TextButton }
-                    context.getSharedPreferences("sleepagent_user", android.content.Context.MODE_PRIVATE)
-                        .edit()
-                        .putString("display_name", newName)
-                        .apply()
-                    displayName = newName
-                    showEditDialog = false
-                }) {
-                    Text("确定")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) {
-                    Text("取消")
-                }
-            }
-        )
     }
 }
 
@@ -369,7 +410,10 @@ private fun MyDeviceCard() {
 // ── 3. Sleep Preferences ──
 
 @Composable
-private fun SleepPreferenceSection() {
+private fun SleepPreferenceSection(
+    preference: SleepPreferenceUiState,
+    onEdit: () -> Unit
+) {
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = Color.White.copy(alpha = 0.06f),
@@ -380,17 +424,38 @@ private fun SleepPreferenceSection() {
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                "睡眠偏好",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.55f)
-            )
-            PreferenceRow("目标睡眠时长", "7.5 小时")
-            PreferenceRow("默认起床时间", "07:30")
-            PreferenceRow("睡前提醒", "23:00")
-            PreferenceRow("智能唤醒", "已开启")
-            PreferenceRow("助眠偏好", "呼吸放松 + 白噪音")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "睡眠偏好",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White.copy(alpha = 0.55f)
+                )
+                Surface(
+                    onClick = onEdit,
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF6C8CFF).copy(alpha = 0.10f)
+                ) {
+                    Text(
+                        "编辑",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF6C8CFF),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+            PreferenceRow("目标睡眠时长", "${preference.targetSleepHours} 小时")
+            PreferenceRow("默认入睡时间", preference.defaultBedtime)
+            PreferenceRow("默认起床时间", preference.defaultWakeTime)
+            PreferenceRow("睡前提醒", preference.bedtimeReminder)
+            PreferenceRow("智能唤醒", if (preference.smartWakeEnabled) "已开启" else "已关闭")
+            PreferenceRow("助眠偏好", preference.soundAidPreferences.joinToString(" + "))
+            PreferenceRow("AI 陪伴", if (preference.aiCompanionEnabled) "已开启" else "已关闭")
         }
     }
 }
@@ -614,6 +679,408 @@ private fun AdvancedModeCard() {
             }
         }
     }
+}
+
+// ── Edit Profile Sheet ──
+
+@Composable
+private fun EditProfileSheet(
+    profile: UserProfileUiState,
+    onDismiss: () -> Unit,
+    onSave: (UserProfileUiState) -> Unit
+) {
+    var nickname by rememberSaveable { mutableStateOf(profile.nickname) }
+    var gender by rememberSaveable { mutableStateOf(profile.gender) }
+    var ageRange by rememberSaveable { mutableStateOf(profile.ageRange) }
+    var currentGoal by rememberSaveable { mutableStateOf(profile.currentGoal) }
+
+    EditSheetScaffold(
+        title = "编辑资料",
+        onDismiss = onDismiss,
+        onSave = {
+            onSave(profile.copy(
+                nickname = nickname.trim().ifBlank { profile.nickname },
+                gender = gender,
+                ageRange = ageRange,
+                currentGoal = currentGoal
+            ))
+        }
+    ) {
+        GroupLabel("头像 / 昵称")
+        OutlinedTextField(
+            value = nickname,
+            onValueChange = { nickname = it },
+            singleLine = true,
+            label = { Text("昵称") },
+            colors = darkFieldColors(),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        GroupLabel("基础信息")
+        ChipGroup("性别", genderOptions, gender) { gender = it }
+        ChipGroup("年龄段", ageRangeOptions, ageRange) { ageRange = it }
+
+        GroupLabel("当前睡眠目标")
+        ChipGroup(null, goalOptions, currentGoal) { currentGoal = it }
+    }
+}
+
+// ── Sleep Preference Edit Sheet ──
+
+@Composable
+private fun SleepPreferenceEditSheet(
+    preference: SleepPreferenceUiState,
+    onDismiss: () -> Unit,
+    onSave: (SleepPreferenceUiState) -> Unit
+) {
+    var targetSleepHours by rememberSaveable { mutableStateOf(preference.targetSleepHours) }
+    var defaultBedtime by rememberSaveable { mutableStateOf(preference.defaultBedtime) }
+    var defaultWakeTime by rememberSaveable { mutableStateOf(preference.defaultWakeTime) }
+    var bedtimeReminder by rememberSaveable { mutableStateOf(preference.bedtimeReminder) }
+    var smartWakeEnabled by rememberSaveable { mutableStateOf(preference.smartWakeEnabled) }
+    var soundAidPreferences by rememberSaveable { mutableStateOf(preference.soundAidPreferences) }
+    var aiCompanionEnabled by rememberSaveable { mutableStateOf(preference.aiCompanionEnabled) }
+
+    EditSheetScaffold(
+        title = "睡眠偏好",
+        onDismiss = onDismiss,
+        onSave = {
+            onSave(preference.copy(
+                targetSleepHours = targetSleepHours,
+                defaultBedtime = defaultBedtime,
+                defaultWakeTime = defaultWakeTime,
+                bedtimeReminder = bedtimeReminder,
+                smartWakeEnabled = smartWakeEnabled,
+                soundAidPreferences = soundAidPreferences,
+                aiCompanionEnabled = aiCompanionEnabled
+            ))
+        }
+    ) {
+        // Target sleep hours
+        GroupLabel("目标睡眠时长")
+        Text(
+            "${targetSleepHours} 小时",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF6C8CFF)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text("5.0", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.30f))
+            Slider(
+                value = targetSleepHours,
+                onValueChange = { targetSleepHours = (it * 2f).roundToInt() / 2f },
+                valueRange = 5f..10f,
+                steps = 9,
+                modifier = Modifier.weight(1f),
+                colors = SliderDefaults.colors(
+                    thumbColor = Color(0xFF6C8CFF),
+                    activeTrackColor = Color(0xFF6C8CFF),
+                    inactiveTrackColor = Color.White.copy(alpha = 0.10f)
+                )
+            )
+            Text("10.0", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.30f))
+        }
+
+        // Default bedtime
+        GroupLabel("默认入睡时间")
+        TimeAdjustRow(time = defaultBedtime, onMinus = { defaultBedtime = adjustTimeStr(defaultBedtime, -15) }, onPlus = { defaultBedtime = adjustTimeStr(defaultBedtime, 15) })
+
+        // Default wake time
+        GroupLabel("默认起床时间")
+        TimeAdjustRow(time = defaultWakeTime, onMinus = { defaultWakeTime = adjustTimeStr(defaultWakeTime, -15) }, onPlus = { defaultWakeTime = adjustTimeStr(defaultWakeTime, 15) })
+
+        // Bedtime reminder
+        GroupLabel("睡前提醒")
+        ChipGroup(null, listOf("入睡前15分钟", "入睡前30分钟", "入睡前60分钟"), bedtimeReminder) { bedtimeReminder = it }
+
+        // Smart wake
+        ToggleSetting("智能唤醒", smartWakeEnabled) { smartWakeEnabled = it }
+
+        // Sound aid preferences (multi-select)
+        GroupLabel("助眠偏好")
+        MultiChipGroup(options = soundAidOptions, selected = soundAidPreferences) { selected ->
+            soundAidPreferences = if (soundAidPreferences.contains(selected)) {
+                if (soundAidPreferences.size > 1) soundAidPreferences - selected else soundAidPreferences
+            } else {
+                soundAidPreferences + selected
+            }
+        }
+
+        // AI companion
+        ToggleSetting("AI 陪伴", aiCompanionEnabled) { aiCompanionEnabled = it }
+    }
+}
+
+// ── Edit Sheet Shared Components ──
+
+@Composable
+private fun EditSheetScaffold(
+    title: String,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF10172A),
+                        Color(0xFF0B1020),
+                        Color(0xFF070B16)
+                    )
+                )
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 100.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "返回",
+                        tint = Color.White.copy(alpha = 0.70f)
+                    )
+                }
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.94f),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // Content
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                content()
+            }
+        }
+
+        // Save button
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = Color.Transparent,
+            shadowElevation = 8.dp
+        ) {
+            Button(
+                onClick = onSave,
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF6C8CFF),
+                    contentColor = Color.White
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "保存",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = Color.White.copy(alpha = 0.44f),
+        modifier = Modifier.padding(top = 4.dp)
+    )
+}
+
+@Composable
+private fun ChipGroup(
+    title: String?,
+    options: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (title != null) {
+            Text(title, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.36f))
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            options.forEach { option ->
+                val isSelected = selected == option
+                Surface(
+                    onClick = { onSelect(option) },
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isSelected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
+                    border = if (isSelected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null
+                ) {
+                    Text(
+                        option,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (isSelected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MultiChipGroup(
+    options: List<String>,
+    selected: Set<String>,
+    onToggle: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        options.forEach { option ->
+            val isSelected = option in selected
+            Surface(
+                onClick = { onToggle(option) },
+                shape = RoundedCornerShape(10.dp),
+                color = if (isSelected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
+                border = if (isSelected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null
+            ) {
+                Text(
+                    option,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isSelected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToggleSetting(
+    label: String,
+    checked: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.62f)
+        )
+        Surface(
+            onClick = { onToggle(!checked) },
+            shape = RoundedCornerShape(12.dp),
+            color = if (checked) Color(0xFF6C8CFF).copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f)
+        ) {
+            Text(
+                if (checked) "开启" else "关闭",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                color = if (checked) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.40f),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimeAdjustRow(
+    time: String,
+    onMinus: () -> Unit,
+    onPlus: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            onClick = onMinus,
+            shape = RoundedCornerShape(8.dp),
+            color = Color.White.copy(alpha = 0.08f)
+        ) {
+            Text(
+                "-15",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                color = Color.White.copy(alpha = 0.55f),
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+            )
+        }
+        Text(
+            time,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White.copy(alpha = 0.90f),
+            modifier = Modifier.padding(horizontal = 24.dp)
+        )
+        Surface(
+            onClick = onPlus,
+            shape = RoundedCornerShape(8.dp),
+            color = Color.White.copy(alpha = 0.08f)
+        ) {
+            Text(
+                "+15",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                color = Color.White.copy(alpha = 0.55f),
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun darkFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = Color.White.copy(alpha = 0.90f),
+    unfocusedTextColor = Color.White.copy(alpha = 0.70f),
+    focusedLabelColor = Color(0xFF6C8CFF),
+    unfocusedLabelColor = Color.White.copy(alpha = 0.40f),
+    cursorColor = Color(0xFF6C8CFF),
+    focusedBorderColor = Color(0xFF6C8CFF),
+    unfocusedBorderColor = Color.White.copy(alpha = 0.12f)
+)
+
+private fun adjustTimeStr(time: String, deltaMin: Int): String {
+    val parts = time.split(":")
+    val hour = parts.getOrNull(0)?.toIntOrNull() ?: 23
+    val minute = parts.getOrNull(1)?.toIntOrNull() ?: 30
+    val total = hour * 60 + minute + deltaMin
+    val adjusted = (total + 1440) % 1440
+    return "%02d:%02d".format(adjusted / 60, adjusted % 60)
 }
 
 // ── Preview ──
