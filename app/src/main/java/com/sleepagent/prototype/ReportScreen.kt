@@ -143,7 +143,7 @@ fun ReportScreenContent(
             .fillMaxSize()
             .statusBarsPadding()
             .imePadding()
-            .background(Color(0xFF0F172A))
+            .background(MaterialTheme.colorScheme.background)
     ) {
         ChatHeader(dateText = uiModel.dateText)
 
@@ -170,10 +170,10 @@ fun ReportScreenContent(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(160.dp)
-                                .background(Color(0xFF1E293B), RoundedCornerShape(28.dp)),
+                                .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(28.dp)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("暂无趋势数据", color = Color.White.copy(alpha = 0.3f))
+                            Text("暂无趋势数据", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -200,7 +200,7 @@ private fun CardTabSelector(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF1E293B), RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp))
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -228,7 +228,7 @@ private fun TabItem(
 ) {
     Surface(
         shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) Color(0xFF334155) else Color.Transparent,
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
         modifier = modifier.clickable { onClick() }
     ) {
         Box(
@@ -239,7 +239,7 @@ private fun TabItem(
                 text = text,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f)
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -255,14 +255,14 @@ private fun ChatHeader(dateText: String) {
     ) {
         Surface(
             shape = CircleShape,
-            color = Color(0xFF1E293B),
+            color = MaterialTheme.colorScheme.primaryContainer,
             modifier = Modifier.size(48.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Default.SmartToy,
                     contentDescription = null,
-                    tint = Color(0xFF38BDF8),
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -275,18 +275,18 @@ private fun ChatHeader(dateText: String) {
                 text = "AI 睡眠助手",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
             Text(
                 text = "基于 $dateText 的睡眠报告",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.5f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = Color(0xFF1E293B),
+            color = MaterialTheme.colorScheme.surfaceContainer,
             modifier = Modifier.clickable { /* TODO: Open History */ }
         ) {
             Row(
@@ -297,13 +297,13 @@ private fun ChatHeader(dateText: String) {
                 Icon(
                     imageVector = Icons.Default.History,
                     contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.7f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
                     text = "历史",
                     style = MaterialTheme.typography.labelLarge,
-                    color = Color.White.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -314,7 +314,7 @@ private fun ChatHeader(dateText: String) {
 private fun SleepSummaryCard(uiModel: ReportUiModel) {
     Surface(
         shape = RoundedCornerShape(28.dp),
-        color = Color(0xFF1E293B),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -329,7 +329,7 @@ private fun SleepSummaryCard(uiModel: ReportUiModel) {
                     text = "昨晚睡眠摘要",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 SummaryTag(text = uiModel.summaryTag)
@@ -345,16 +345,18 @@ private fun SleepSummaryCard(uiModel: ReportUiModel) {
                     modifier = Modifier.size(100.dp),
                     contentAlignment = Alignment.Center
                 ) {
+                    val scoreTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                    val scoreArcColor = MaterialTheme.colorScheme.secondary
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         drawArc(
-                            color = Color.White.copy(alpha = 0.1f),
+                            color = scoreTrackColor,
                             startAngle = 0f,
                             sweepAngle = 360f,
                             useCenter = false,
                             style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
                         )
                         drawArc(
-                            color = Color(0xFF10B981),
+                            color = scoreArcColor,
                             startAngle = -90f,
                             sweepAngle = (uiModel.score / 100f) * 360f,
                             useCenter = false,
@@ -366,12 +368,12 @@ private fun SleepSummaryCard(uiModel: ReportUiModel) {
                             text = uiModel.score.toString(),
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = "/100",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.5f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -411,7 +413,7 @@ private fun SleepSummaryCard(uiModel: ReportUiModel) {
             Text(
                 text = "查看完整报告 >",
                 style = MaterialTheme.typography.labelLarge,
-                color = Color(0xFF10B981),
+                color = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier.align(Alignment.End).clickable { /* TODO */ }
             )
         }
@@ -429,7 +431,7 @@ private fun SleepTrendCard(scores: List<Int>) {
 
     Surface(
         shape = RoundedCornerShape(28.dp),
-        color = Color(0xFF1E293B),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -440,7 +442,7 @@ private fun SleepTrendCard(scores: List<Int>) {
                 text = "近期得分趋势",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.9f)
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Box(
@@ -453,8 +455,8 @@ private fun SleepTrendCard(scores: List<Int>) {
                         rememberLineCartesianLayer(
                             lineProvider = LineCartesianLayer.LineProvider.series(
                                 LineCartesianLayer.rememberLine(
-                                    fill = LineCartesianLayer.LineFill.single(Fill(Color(0xFF38BDF8))),
-                                    areaFill = LineCartesianLayer.AreaFill.single(Fill(Color(0x2038BDF8))),
+                                    fill = LineCartesianLayer.LineFill.single(Fill(MaterialTheme.colorScheme.primary)),
+                                    areaFill = LineCartesianLayer.AreaFill.single(Fill(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))),
                                     pointConnector = LineCartesianLayer.PointConnector.cubic()
                                 )
                             )
@@ -472,14 +474,14 @@ private fun SleepTrendCard(scores: List<Int>) {
 private fun SummaryTag(text: String) {
     Surface(
         shape = RoundedCornerShape(8.dp),
-        color = Color(0xFF10B981).copy(alpha = 0.2f)
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.76f)
     ) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF10B981)
+            color = MaterialTheme.colorScheme.onSecondaryContainer
         )
     }
 }
@@ -490,13 +492,13 @@ private fun SummaryMetric(label: String, value: String, modifier: Modifier = Mod
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = Color.White.copy(alpha = 0.5f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
             text = value,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
@@ -513,14 +515,14 @@ private fun ChatMessageItem(message: ChatMessage) {
         if (isAi) {
             Surface(
                 shape = CircleShape,
-                color = Color(0xFF1E293B),
+                color = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.size(40.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.SmartToy,
                         contentDescription = null,
-                        tint = Color(0xFF38BDF8),
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -536,7 +538,7 @@ private fun ChatMessageItem(message: ChatMessage) {
                 Text(
                     text = "AI 助手",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF10B981),
+                    color = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
             }
@@ -548,8 +550,8 @@ private fun ChatMessageItem(message: ChatMessage) {
                     bottomStart = 20.dp,
                     bottomEnd = 20.dp
                 ),
-                color = if (isAi) Color(0xFF1E293B) else Color(0xFF2563EB),
-                contentColor = Color.White
+                color = if (isAi) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.primary,
+                contentColor = if (isAi) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
@@ -572,13 +574,13 @@ private fun ChatMessageItem(message: ChatMessage) {
                             Text(
                                 text = "生成今晚计划 >",
                                 style = MaterialTheme.typography.labelLarge,
-                                color = Color(0xFF10B981),
+                                color = MaterialTheme.colorScheme.secondary,
                                 modifier = Modifier.clickable {  }
                             )
                             Text(
                                 text = "查看更多建议",
                                 style = MaterialTheme.typography.labelLarge,
-                                color = Color.White.copy(alpha = 0.5f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.clickable {  }
                             )
                         }
@@ -589,7 +591,7 @@ private fun ChatMessageItem(message: ChatMessage) {
             Text(
                 text = message.time,
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.3f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
                 modifier = Modifier.padding(top = 4.dp)
             )
         }
@@ -598,14 +600,14 @@ private fun ChatMessageItem(message: ChatMessage) {
             Spacer(modifier = Modifier.width(10.dp))
             Surface(
                 shape = CircleShape,
-                color = Color(0xFF1E293B),
+                color = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.size(40.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -640,12 +642,12 @@ private fun AdviceRow(item: AdviceItem) {
                 text = item.title,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = item.desc,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.6f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -657,7 +659,7 @@ private fun QuickQuestionBar() {
         Text(
             text = "你可以问我",
             style = MaterialTheme.typography.labelMedium,
-            color = Color.White.copy(alpha = 0.4f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -673,8 +675,8 @@ private fun QuickQuestionBar() {
 private fun QuickChip(text: String, icon: ImageVector) {
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = Color(0xFF1E293B),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.clickable { }
     ) {
         Row(
@@ -685,13 +687,13 @@ private fun QuickChip(text: String, icon: ImageVector) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Color(0xFF38BDF8),
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(16.dp)
             )
             Text(
                 text = text,
                 style = MaterialTheme.typography.labelLarge,
-                color = Color.White.copy(alpha = 0.8f)
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -700,7 +702,7 @@ private fun QuickChip(text: String, icon: ImageVector) {
 @Composable
 private fun ChatInputBar() {
     Surface(
-        color = Color(0xFF0F172A),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
         tonalElevation = 8.dp
     ) {
         Row(
@@ -717,36 +719,36 @@ private fun ChatInputBar() {
                 placeholder = {
                     Text(
                         "询问 AI 睡眠助手...",
-                        color = Color.White.copy(alpha = 0.3f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },
                 shape = RoundedCornerShape(24.dp),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFF1E293B),
-                    unfocusedContainerColor = Color(0xFF1E293B),
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
-                    cursorColor = Color(0xFF38BDF8)
+                    cursorColor = MaterialTheme.colorScheme.primary
                 ),
                 trailingIcon = {
                     Icon(
                         imageVector = Icons.Default.SentimentSatisfiedAlt,
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.3f)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             )
 
             Surface(
                 shape = CircleShape,
-                color = Color(0xFF2563EB),
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(48.dp).clickable { }
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Send,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(24.dp)
                     )
                 }

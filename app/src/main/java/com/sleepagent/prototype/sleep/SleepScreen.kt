@@ -1095,14 +1095,19 @@ private fun MetricMiniCard(label: String, value: Float?) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(formatFloat(value), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(
+                formatFloat(value),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }
@@ -1122,14 +1127,19 @@ private fun StatusMiniCard(status: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text("状态", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(label, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(
+                label,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }
@@ -1158,7 +1168,7 @@ private fun EegWaveChart(
         modifier = Modifier
             .fillMaxWidth()
             .height(210.dp)
-            .background(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp))
+            .background(color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(20.dp))
             .padding(12.dp)
     ) {
         Column(
@@ -1183,9 +1193,9 @@ private fun EegWaveChart(
                 .fillMaxHeight()
                 .padding(start = 44.dp)
         ) {
-            drawRect(color = Color(0x1422D3EE))
-            val gridColor = Color(0x1A94A3B8)
-            val centerColor = Color(0x3322D3EE)
+            drawRect(color = lineColor.copy(alpha = 0.08f))
+            val gridColor = lineColor.copy(alpha = 0.18f)
+            val centerColor = lineColor.copy(alpha = 0.35f)
             val width = size.width
             val height = size.height
             val verticalStep = width / 4f
@@ -1207,7 +1217,7 @@ private fun EegWaveChart(
                 drawPath(
                     buildPath(normalized, size),
                     lineColor,
-                    style = Stroke(width = 2.2f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    style = Stroke(width = 3.0f, cap = StrokeCap.Round, join = StrokeJoin.Round)
                 )
             }
         }
@@ -1240,12 +1250,12 @@ private fun SignalTrendChart(
         modifier = Modifier
             .fillMaxWidth()
             .height(210.dp)
-            .background(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp))
+            .background(color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(20.dp))
             .padding(12.dp)
     ) {
         Canvas(modifier = Modifier.fillMaxWidth().fillMaxHeight()) {
-            drawRect(color = Color(0x1422D3EE))
-            val gridColor = Color(0x1A94A3B8)
+            drawRect(color = lineColor.copy(alpha = 0.08f))
+            val gridColor = lineColor.copy(alpha = 0.18f)
             val width = size.width
             val height = size.height
             val verticalStep = width / 4f
@@ -1294,12 +1304,12 @@ private fun DualSeriesTrendChart(
         modifier = Modifier
             .fillMaxWidth()
             .height(210.dp)
-            .background(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp))
+            .background(color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(20.dp))
             .padding(12.dp)
     ) {
         Canvas(modifier = Modifier.fillMaxWidth().fillMaxHeight()) {
-            drawRect(color = Color(0x1422D3EE))
-            val gridColor = Color(0x1A94A3B8)
+            drawRect(color = hboColor.copy(alpha = 0.08f))
+            val gridColor = hboColor.copy(alpha = 0.18f)
             val width = size.width
             val height = size.height
             val verticalStep = width / 4f

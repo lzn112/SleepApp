@@ -332,6 +332,17 @@ class SleepStorageRepository(
         }
     }
 
+    suspend fun insertCompleteSession(session: SleepSessionRecord) {
+        withContext(ioDispatcher) {
+            databaseHelper.writableDatabase.insertWithOnConflict(
+                SleepStorageDatabaseHelper.TABLE_SLEEP_SESSION,
+                null,
+                session.toContentValues(),
+                SQLiteDatabase.CONFLICT_REPLACE
+            )
+        }
+    }
+
     suspend fun listRecentSessions(limit: Int = 20): List<SleepSessionRecord> {
         return withContext(ioDispatcher) {
             databaseHelper.readableDatabase.query(

@@ -1,5 +1,6 @@
 package com.sleepagent.prototype
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,27 +42,39 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sleepagent.prototype.data.MockDataGenerator
+import com.sleepagent.prototype.data.SleepStorageRepository
 import com.sleepagent.prototype.ui.theme.SleepAgentPrototypeTheme
+import kotlinx.coroutines.launch
 
 private data class ProfileMenuItemSpec(
     val label: String,
-    val icon: ImageVector
+    val icon: ImageVector,
+    val onClick: () -> Unit = {}
 )
 
 @Composable
 fun ProfileScreenContent(
     onHistoryClick: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val repository = remember { SleepStorageRepository(context) }
+    val generator = remember { MockDataGenerator(repository) }
+
     val menuItems = listOf(
         ProfileMenuItemSpec("睡眠洞察", Icons.Default.BarChart),
         ProfileMenuItemSpec("夜间筛查", Icons.Default.CardGiftcard),
@@ -72,7 +85,13 @@ fun ProfileScreenContent(
         ProfileMenuItemSpec("习惯挑战", Icons.Default.TaskAlt),
         ProfileMenuItemSpec("灵感收藏", Icons.Default.FavoriteBorder),
         ProfileMenuItemSpec("帮助与反馈", Icons.Default.ReportProblem),
-        ProfileMenuItemSpec("更多工具", Icons.Default.Apps)
+        ProfileMenuItemSpec("生成演示数据", Icons.Default.Apps, onClick = {
+            scope.launch {
+                Toast.makeText(context, "正在生成演示数据...", Toast.LENGTH_SHORT).show()
+                generator.generateLastSevenDays()
+                Toast.makeText(context, "演示数据生成成功！", Toast.LENGTH_SHORT).show()
+            }
+        })
     )
 
     LazyColumn(
@@ -97,7 +116,7 @@ fun ProfileScreenContent(
         item {
             Surface(
                 shape = RoundedCornerShape(30.dp),
-                color = Color.White.copy(alpha = 0.05f),
+                color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f),
                 tonalElevation = 0.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -136,13 +155,13 @@ private fun ProfileHeaderActions() {
 private fun ProfileActionButton(icon: ImageVector) {
     Surface(
         shape = CircleShape,
-        color = Color.White.copy(alpha = 0.08f),
-        contentColor = Color.White.copy(alpha = 0.80f),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .size(46.dp)
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.12f),
+                color = MaterialTheme.colorScheme.outlineVariant,
                 shape = CircleShape
             )
     ) {
@@ -174,7 +193,7 @@ private fun ProfileIdentitySection() {
                 text = "夜航者 Atlas",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
             ProfilePointChip()
         }
@@ -189,7 +208,7 @@ private fun ProfileAvatar() {
     ) {
         Surface(
             shape = RoundedCornerShape(32.dp),
-            color = Color.White.copy(alpha = 0.08f),
+            color = MaterialTheme.colorScheme.surfaceContainer,
             modifier = Modifier.fillMaxSize()
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -197,7 +216,7 @@ private fun ProfileAvatar() {
                     modifier = Modifier
                         .size(56.dp)
                         .background(
-                            color = Color.White.copy(alpha = 0.05f),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
                             shape = RoundedCornerShape(22.dp)
                         ),
                     contentAlignment = Alignment.Center
@@ -205,7 +224,7 @@ private fun ProfileAvatar() {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.6f),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(30.dp)
                     )
                 }
@@ -218,8 +237,8 @@ private fun ProfileAvatar() {
 private fun ProfilePointChip() {
     val chipBrush = Brush.horizontalGradient(
         colors = listOf(
-            Color(0xFF2D63FF),
-            Color(0xFF4F8BFF)
+            MaterialTheme.colorScheme.primary,
+            MaterialTheme.colorScheme.tertiary
         )
     )
 
@@ -238,19 +257,19 @@ private fun ProfilePointChip() {
             Icon(
                 imageVector = Icons.Default.Diamond,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.94f),
+                tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(18.dp)
             )
             Text(
                 text = "睡眠值 86",
                 style = MaterialTheme.typography.titleSmall,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onPrimary,
                 fontWeight = FontWeight.Medium
             )
             Box(
                 modifier = Modifier
                     .size(8.dp)
-                    .background(Color(0xFFFF7A00), CircleShape)
+                    .background(MaterialTheme.colorScheme.secondary, CircleShape)
             )
         }
     }
@@ -260,7 +279,7 @@ private fun ProfilePointChip() {
 private fun SleepHistoryEntryCard(onClick: () -> Unit) {
     Surface(
         shape = RoundedCornerShape(30.dp),
-        color = Color.White.copy(alpha = 0.05f),
+        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f),
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
@@ -273,14 +292,14 @@ private fun SleepHistoryEntryCard(onClick: () -> Unit) {
         ) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = Color.White.copy(alpha = 0.08f),
+                color = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.size(48.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.CalendarMonth,
                         contentDescription = null,
-                        tint = Color(0xFF38BDF8),
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(26.dp)
                     )
                 }
@@ -293,19 +312,19 @@ private fun SleepHistoryEntryCard(onClick: () -> Unit) {
                     text = "历史睡眠记录",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "查看所有睡眠会话与分析报告",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.5f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.3f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(26.dp)
             )
         }
@@ -322,20 +341,20 @@ private fun ProfileMenuRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(24.dp))
-                .clickable { }
+                .clickable { item.onClick() }
                 .padding(horizontal = 8.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
                 shape = RoundedCornerShape(14.dp),
-                color = Color.White.copy(alpha = 0.08f),
+                color = MaterialTheme.colorScheme.surfaceContainer,
                 modifier = Modifier.size(42.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = item.icon,
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.9f),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -346,14 +365,14 @@ private fun ProfileMenuRow(
             Text(
                 text = item.label,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
 
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.2f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(26.dp)
             )
         }
@@ -364,7 +383,7 @@ private fun ProfileMenuRow(
                     .fillMaxWidth()
                     .padding(start = 64.dp, end = 8.dp)
                     .height(1.dp)
-                    .background(Color.White.copy(alpha = 0.03f))
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.24f))
             )
         }
     }
@@ -377,7 +396,7 @@ private fun ProfileScreenPreview() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF0F172A))
+                .background(MaterialTheme.colorScheme.background)
         ) {
             ProfileScreenContent()
         }

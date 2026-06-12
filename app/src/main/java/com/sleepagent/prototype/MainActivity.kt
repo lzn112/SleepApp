@@ -162,47 +162,19 @@ private enum class MainTab(
 
 @Composable
 private fun SleepBackgroundBrush(): Brush {
-    val primary = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-    val tertiary = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f)
     return Brush.verticalGradient(
         colors = listOf(
-            primary,
-            tertiary,
-            MaterialTheme.colorScheme.background,
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+            Color(0xFF050B18),
+            Color(0xFF081426),
+            Color(0xFF0D1830),
+            Color(0xFF07111F)
         )
     )
 }
 
 @Composable
 private fun SleepAppDecorations() {
-    val primary = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-    val tertiary = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.09f)
-    val surface = MaterialTheme.colorScheme.surface.copy(alpha = 0.38f)
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .offset(x = 40.dp, y = (-28).dp)
-                .size(180.dp)
-                .background(primary, CircleShape)
-                .align(Alignment.TopStart)
-        )
-        Box(
-            modifier = Modifier
-                .offset(x = (-24).dp, y = 68.dp)
-                .size(120.dp)
-                .background(tertiary, CircleShape)
-                .align(Alignment.TopEnd)
-        )
-        Box(
-            modifier = Modifier
-                .offset(x = 24.dp, y = 20.dp)
-                .size(220.dp)
-                .background(surface, CircleShape)
-                .align(Alignment.BottomEnd)
-        )
-    }
+    Box(modifier = Modifier.fillMaxSize())
 }
 
 @Composable

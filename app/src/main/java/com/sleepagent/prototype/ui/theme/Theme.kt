@@ -7,9 +7,9 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
 private val DarkColorScheme = darkColorScheme(
-    primary = NightBlue80,
-    secondary = MistBlue80,
-    tertiary = RoseGlow80,
+    primary = DeepBlue80,
+    secondary = LightBlue80,
+    tertiary = RoyalBlue80,
     background = SleepBackgroundDark,
     surface = ColorTokens.DarkSurface,
     surfaceContainerLow = ColorTokens.DarkSurfaceLow,
@@ -25,9 +25,9 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = NightBlue40,
-    secondary = MistBlue40,
-    tertiary = RoseGlow40,
+    primary = DeepBlue40,
+    secondary = LightBlue40,
+    tertiary = RoyalBlue40,
     background = SleepBackgroundLight,
     surface = ColorTokens.LightSurface,
     surfaceContainerLow = ColorTokens.LightSurfaceLow,
@@ -44,7 +44,7 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun SleepAgentPrototypeTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = true,
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
@@ -64,27 +64,27 @@ fun SleepAgentPrototypeTheme(
 }
 
 private object ColorTokens {
-    val DarkSurface = androidx.compose.ui.graphics.Color(0xFF11192B)
-    val DarkSurfaceLow = androidx.compose.ui.graphics.Color(0xFF182235)
-    val DarkSurfaceMid = androidx.compose.ui.graphics.Color(0xFF1E2940)
+    val DarkSurface = androidx.compose.ui.graphics.Color(0xFF0B1424)
+    val DarkSurfaceLow = androidx.compose.ui.graphics.Color(0xFF101B31)
+    val DarkSurfaceMid = androidx.compose.ui.graphics.Color(0xFF1A2742)
     val DarkOnPrimary = androidx.compose.ui.graphics.Color(0xFF07111F)
-    val DarkOnSecondary = androidx.compose.ui.graphics.Color(0xFF08111B)
-    val DarkOnTertiary = androidx.compose.ui.graphics.Color(0xFF221018)
-    val DarkOnBackground = androidx.compose.ui.graphics.Color(0xFFE8EDF8)
-    val DarkOnSurface = androidx.compose.ui.graphics.Color(0xFFE7ECF7)
-    val DarkOnSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFA7B2C9)
-    val DarkPrimaryContainer = androidx.compose.ui.graphics.Color(0xFF223459)
-    val DarkOnPrimaryContainer = androidx.compose.ui.graphics.Color(0xFFDCE5FF)
+    val DarkOnSecondary = androidx.compose.ui.graphics.Color(0xFF062322)
+    val DarkOnTertiary = androidx.compose.ui.graphics.Color(0xFF171021)
+    val DarkOnBackground = androidx.compose.ui.graphics.Color(0xFFF2F6FF)
+    val DarkOnSurface = androidx.compose.ui.graphics.Color(0xFFF8FAFF)
+    val DarkOnSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFB9C5D9)
+    val DarkPrimaryContainer = androidx.compose.ui.graphics.Color(0xFF23376A)
+    val DarkOnPrimaryContainer = androidx.compose.ui.graphics.Color(0xFFE4EAFF)
 
     val LightSurface = androidx.compose.ui.graphics.Color(0xFFFFFFFF)
-    val LightSurfaceLow = androidx.compose.ui.graphics.Color(0xFFF0F4FB)
-    val LightSurfaceMid = androidx.compose.ui.graphics.Color(0xFFE8EEF9)
+    val LightSurfaceLow = androidx.compose.ui.graphics.Color(0xFFF8FAFF)
+    val LightSurfaceMid = androidx.compose.ui.graphics.Color(0xFFE5EBF6)
     val LightOnPrimary = androidx.compose.ui.graphics.Color(0xFFFFFFFF)
     val LightOnSecondary = androidx.compose.ui.graphics.Color(0xFFFFFFFF)
     val LightOnTertiary = androidx.compose.ui.graphics.Color(0xFFFFFFFF)
-    val LightOnBackground = androidx.compose.ui.graphics.Color(0xFF111827)
-    val LightOnSurface = androidx.compose.ui.graphics.Color(0xFF121B2C)
-    val LightOnSurfaceVariant = androidx.compose.ui.graphics.Color(0xFF5A6781)
-    val LightPrimaryContainer = androidx.compose.ui.graphics.Color(0xFFDCE5FF)
-    val LightOnPrimaryContainer = androidx.compose.ui.graphics.Color(0xFF0D2148)
+    val LightOnBackground = androidx.compose.ui.graphics.Color(0xFF172033)
+    val LightOnSurface = androidx.compose.ui.graphics.Color(0xFF172033)
+    val LightOnSurfaceVariant = androidx.compose.ui.graphics.Color(0xFF526073)
+    val LightPrimaryContainer = androidx.compose.ui.graphics.Color(0xFFE3E8FF)
+    val LightOnPrimaryContainer = androidx.compose.ui.graphics.Color(0xFF263A73)
 }

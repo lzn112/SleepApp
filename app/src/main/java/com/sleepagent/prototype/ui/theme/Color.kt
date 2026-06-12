@@ -2,13 +2,15 @@ package com.sleepagent.prototype.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val NightBlue80 = Color(0xFFB8C7FF)
-val MistBlue80 = Color(0xFFBDD7E9)
-val RoseGlow80 = Color(0xFFF4BAC7)
+// Sleep-first night palette. The app defaults to this tone so it stays calm
+// and readable even when the device system theme is light.
+val DeepBlue80 = Color(0xFFB7C9FF)
+val LightBlue80 = Color(0xFF8FE7E1)
+val RoyalBlue80 = Color(0xFFD8C4FF)
 
-val NightBlue40 = Color(0xFF4B6EDB)
-val MistBlue40 = Color(0xFF4A6E87)
-val RoseGlow40 = Color(0xFFB86A7D)
+val DeepBlue40 = Color(0xFF445DA8)
+val LightBlue40 = Color(0xFF237B81)
+val RoyalBlue40 = Color(0xFF6B55A8)
 
-val SleepBackgroundDark = Color(0xFF08101F)
-val SleepBackgroundLight = Color(0xFFF5F7FB)
+val SleepBackgroundDark = Color(0xFF050B18)
+val SleepBackgroundLight = Color(0xFFEFF3FA)

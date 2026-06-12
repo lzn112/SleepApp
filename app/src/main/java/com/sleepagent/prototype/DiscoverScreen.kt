@@ -218,7 +218,7 @@ private fun DiscoverCategoryTabs() {
 private fun DiscoverPostCard(post: DiscoverPost) {
     Surface(
         shape = RoundedCornerShape(30.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.28f),
+        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.94f),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -467,7 +467,7 @@ private fun DiscoverScreenPreview() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF161E39))
+                .background(MaterialTheme.colorScheme.background)
         ) {
             DiscoverScreenContent()
         }

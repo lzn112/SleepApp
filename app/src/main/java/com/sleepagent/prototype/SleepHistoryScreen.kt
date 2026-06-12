@@ -112,7 +112,7 @@ fun SleepHistoryScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .background(Color(0xFF151D38)),
+            .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -162,7 +162,7 @@ private fun HistoryTopBar(onBackClick: () -> Unit) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
             contentDescription = "返回",
-            tint = Color.White,
+            tint = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier
                 .size(32.dp)
                 .clickable { onBackClick() }
@@ -174,7 +174,7 @@ private fun HistoryTopBar(onBackClick: () -> Unit) {
             text = "历史记录",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -183,13 +183,13 @@ private fun HistoryTopBar(onBackClick: () -> Unit) {
             Icon(
                 imageVector = Icons.Default.CalendarMonth,
                 contentDescription = "日历",
-                tint = Color.White.copy(alpha = 0.8f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp)
             )
             Icon(
                 imageVector = Icons.Default.FilterList,
                 contentDescription = "筛选",
-                tint = Color.White.copy(alpha = 0.8f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp)
             )
         }
@@ -239,7 +239,7 @@ private fun OverviewCard(recentItems: List<SleepSessionWithSummary>) {
 
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = Color(0xFF1E2746),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -256,13 +256,13 @@ private fun OverviewCard(recentItems: List<SleepSessionWithSummary>) {
                         text = "近 7 晚睡眠概览",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.9f)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     if (dateRangeText.isNotEmpty()) {
                         Text(
                             text = dateRangeText,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.4f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -279,8 +279,8 @@ private fun OverviewCard(recentItems: List<SleepSessionWithSummary>) {
                             rememberLineCartesianLayer(
                                 lineProvider = LineCartesianLayer.LineProvider.series(
                                     LineCartesianLayer.rememberLine(
-                                        fill = LineCartesianLayer.LineFill.single(Fill(Color(0xFF2FCBBC))),
-                                        areaFill = LineCartesianLayer.AreaFill.single(Fill(Color(0x202FCBBC))),
+                                        fill = LineCartesianLayer.LineFill.single(Fill(MaterialTheme.colorScheme.secondary)),
+                                        areaFill = LineCartesianLayer.AreaFill.single(Fill(MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f))),
                                         pointConnector = LineCartesianLayer.PointConnector.cubic()
                                     )
                                 )
@@ -312,13 +312,13 @@ private fun OverviewItem(label: String, value: String, modifier: Modifier = Modi
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = Color.White.copy(alpha = 0.5f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
             text = value,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
@@ -363,15 +363,15 @@ private fun FilterChip(
 ) {
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = if (isSelected) Color(0xFF2E3A59) else Color.Transparent,
-        border = if (isSelected) null else BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.clickable { onClick() }
     ) {
         Text(
             text = label,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             style = MaterialTheme.typography.bodyMedium,
-            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f)
+            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -395,7 +395,7 @@ private fun DateHeader(date: LocalDate) {
         text = text,
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.Bold,
-        color = Color.White.copy(alpha = 0.6f),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
     )
 }
@@ -425,14 +425,14 @@ private fun SleepHistoryRow(
     }
 
     val themeColor = when (session.status) {
-        SleepSessionStatus.COMPLETED -> Color(0xFF2FCBBC)
+        SleepSessionStatus.COMPLETED -> MaterialTheme.colorScheme.secondary
         SleepSessionStatus.RECORDING -> Color(0xFFFF6B72)
         SleepSessionStatus.ABORTED -> Color(0xFFE7C57B)
     }
 
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xFF1E2746),
+        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.94f),
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
@@ -467,13 +467,13 @@ private fun SleepHistoryRow(
                     Text(
                         text = "$startTimeText - $endTimeText",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.6f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = durationText,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
@@ -495,14 +495,14 @@ private fun SleepHistoryRow(
                     Text(
                         text = "睡眠评分",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.4f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "$score",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF2FCBBC)
+                        color = MaterialTheme.colorScheme.secondary
                     )
 
                     Spacer(modifier = Modifier.width(16.dp))
@@ -510,14 +510,14 @@ private fun SleepHistoryRow(
                     Text(
                         text = "数据质量",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.4f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = quality,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF2FCBBC)
+                        color = MaterialTheme.colorScheme.secondary
                     )
 
                     Spacer(modifier = Modifier.weight(1f))
@@ -525,7 +525,7 @@ private fun SleepHistoryRow(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.3f),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -534,13 +534,13 @@ private fun SleepHistoryRow(
                     Text(
                         text = "采集时间过短，未生成报告",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.4f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.3f),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -552,7 +552,7 @@ private fun SleepHistoryRow(
 @Composable
 private fun StatusTag(status: SleepSessionStatus) {
     val (text, color) = when (status) {
-        SleepSessionStatus.COMPLETED -> "已完成" to Color(0xFF2FCBBC)
+        SleepSessionStatus.COMPLETED -> "已完成" to MaterialTheme.colorScheme.secondary
         SleepSessionStatus.RECORDING -> "采集中" to Color(0xFFFF6B72)
         SleepSessionStatus.ABORTED -> "已中断" to Color(0xFFE7C57B)
     }
@@ -575,7 +575,7 @@ private fun StatusTag(status: SleepSessionStatus) {
 private fun SleepHistoryEmpty() {
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.08f),
+        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -589,12 +589,12 @@ private fun SleepHistoryEmpty() {
                 text = "还没有本地睡眠记录",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.72f)
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = "完成一次睡眠采集后，记录会显示在这里。",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.52f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
