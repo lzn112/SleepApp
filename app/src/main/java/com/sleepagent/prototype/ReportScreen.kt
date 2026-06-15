@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
@@ -36,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -66,6 +68,7 @@ import com.sleepagent.prototype.data.SleepSessionRecord
 import com.sleepagent.prototype.data.SleepStage
 import com.sleepagent.prototype.data.SleepStorageRepository
 import com.sleepagent.prototype.ui.theme.SleepAgentPrototypeTheme
+import org.json.JSONObject
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -100,7 +103,39 @@ private data class ReportUiModel(
     val wakeAfterSleepOnsetMs: Long,
     val avgSignalQuality: Float?,
     val dataQualityScore: Float?,
-    val bedDurationMs: Long
+    val bedDurationMs: Long,
+    val movement: MovementReportData? = null,
+    val spo2: Spo2ReportData? = null,
+    val hrv: HrvReportData? = null
+)
+
+private data class ReportTrendPoint(
+    val minute: Int,
+    val value: Float
+)
+
+private data class MovementReportData(
+    val movementCount: Int,
+    val strongMovementCount: Int,
+    val longestQuietMinutes: Int,
+    val highMovementPeriod: String,
+    val points: List<ReportTrendPoint>
+)
+
+private data class Spo2ReportData(
+    val avg: Int,
+    val min: Int,
+    val lowEventCount: Int,
+    val below90Minutes: Int,
+    val points: List<ReportTrendPoint>
+)
+
+private data class HrvReportData(
+    val avg: Int,
+    val min: Int,
+    val max: Int,
+    val recoveryLabel: String,
+    val points: List<ReportTrendPoint>
 )
 
 private enum class ReportTab(val label: String) {
@@ -154,11 +189,6 @@ private fun calculateHealthInsights(model: ReportUiModel): List<HealthInsightUi>
     val skinScore = min(100f, (totalSleepHours * 8f + model.deepPercent * 1.5f + eff * 0.2f).coerceIn(0f, 100f))
     // Dark circles: inverse of short sleep + waso
     val circleRisk = max(0f, (if (isVeryShort) 80f else if (isShortSleep) 50f else 15f) + wasoMinutes * 0.4f).coerceIn(0f, 100f)
-    // Hair loss risk: similar inverse
-    val hairRisk = max(0f, (if (isVeryShort) 70f else if (isShortSleep) 40f else 10f) + wasoMinutes * 0.3f).coerceIn(0f, 100f)
-    // Memory/learning: REM + total duration
-    val memoryScore = min(100f, (model.remPercent * 3.5f + totalSleepHours * 5f + eff * 0.25f).coerceIn(0f, 100f))
-
     return listOf(
         HealthInsightUi("黑眼圈风险", "${circleRisk.roundToInt()}%", statusText(statusFor(100f - circleRisk)),
             when { circleRisk < 20 -> HealthInsightStatus.Good; circleRisk < 50 -> HealthInsightStatus.Normal; else -> HealthInsightStatus.Attention }),
@@ -166,10 +196,7 @@ private fun calculateHealthInsights(model: ReportUiModel): List<HealthInsightUi>
         HealthInsightUi("身体修复", "${bodyScore.roundToInt()}%", statusText(statusFor(bodyScore)), statusFor(bodyScore)),
         HealthInsightUi("大脑恢复", "${brainScore.roundToInt()}%", statusText(statusFor(brainScore)), statusFor(brainScore)),
         HealthInsightUi("情绪稳定", "${moodScore.roundToInt()}%", statusText(statusFor(moodScore)), statusFor(moodScore)),
-        HealthInsightUi("免疫恢复", "${immuneScore.roundToInt()}%", statusText(statusFor(immuneScore)), statusFor(immuneScore)),
-        HealthInsightUi("记忆与学习", "${memoryScore.roundToInt()}%", statusText(statusFor(memoryScore)), statusFor(memoryScore)),
-        HealthInsightUi("脱发风险", "${hairRisk.roundToInt()}%", statusText(statusFor(100f - hairRisk)),
-            when { hairRisk < 20 -> HealthInsightStatus.Good; hairRisk < 50 -> HealthInsightStatus.Normal; else -> HealthInsightStatus.Attention }),
+        HealthInsightUi("免疫恢复", "${immuneScore.roundToInt()}%", statusText(statusFor(immuneScore)), statusFor(immuneScore))
     )
 }
 
@@ -269,7 +296,7 @@ fun ReportScreenContent(
                 }
 
                 ReportTab.SpO2 -> {
-                    item { SpO2ReportTab() }
+                    item { SpO2ReportTab(uiModel = uiModel) }
                 }
 
                 ReportTab.HRV -> {
@@ -818,41 +845,50 @@ private fun SleepStageHypnogramChart(
 
     val lineColor = Color(0xFF6C8CFF)
     val chartHeight = if (compact) 180.dp else 260.dp
+    val hostModifier = if (compact) {
+        Modifier.fillMaxWidth().height(chartHeight)
+    } else {
+        Modifier.width(900.dp).height(chartHeight)
+    }
 
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberLineCartesianLayer(
-                lineProvider = LineCartesianLayer.LineProvider.series(
-                    LineCartesianLayer.rememberLine(
-                        fill = LineCartesianLayer.LineFill.single(
-                            Fill(lineColor.copy(alpha = 0.85f))
-                        ),
-                        pointProvider = null,
-                        stroke = LineCartesianLayer.LineStroke.Continuous(
-                            thickness = 2.5.dp
-                        )
-                    )
-                ),
-                rangeProvider = CartesianLayerRangeProvider.fixed(minY = -0.2, maxY = 3.2)
-            ),
-            startAxis = VerticalAxis.rememberStart(
-                valueFormatter = yFormatter,
-                guideline = null,
-                label = null
-            ),
-            bottomAxis = HorizontalAxis.rememberBottom(
-                valueFormatter = xFormatter,
-                guideline = null,
-                label = null
-            )
-        ),
-        modelProducer = modelProducer,
-        modifier = Modifier
+    Box(
+        modifier = if (compact) Modifier.fillMaxWidth() else Modifier
             .fillMaxWidth()
-            .height(chartHeight),
-        scrollState = rememberVicoScrollState(scrollEnabled = !compact),
-        zoomState = rememberVicoZoomState(zoomEnabled = false)
-    )
+            .horizontalScroll(rememberScrollState())
+    ) {
+        CartesianChartHost(
+            chart = rememberCartesianChart(
+                rememberLineCartesianLayer(
+                    lineProvider = LineCartesianLayer.LineProvider.series(
+                        LineCartesianLayer.rememberLine(
+                            fill = LineCartesianLayer.LineFill.single(
+                                Fill(lineColor.copy(alpha = 0.90f))
+                            ),
+                            pointProvider = null,
+                            stroke = LineCartesianLayer.LineStroke.Continuous(
+                                thickness = if (compact) 2.5.dp else 4.dp
+                            )
+                        )
+                    ),
+                    rangeProvider = CartesianLayerRangeProvider.fixed(minY = -0.2, maxY = 3.2)
+                ),
+                startAxis = VerticalAxis.rememberStart(
+                    valueFormatter = yFormatter,
+                    guideline = null,
+                    label = null
+                ),
+                bottomAxis = HorizontalAxis.rememberBottom(
+                    valueFormatter = xFormatter,
+                    guideline = null,
+                    label = null
+                )
+            ),
+            modelProducer = modelProducer,
+            modifier = hostModifier,
+            scrollState = rememberVicoScrollState(scrollEnabled = !compact),
+            zoomState = rememberVicoZoomState(zoomEnabled = false)
+        )
+    }
 }
 
 // ── 4b. Sleep Stage Overview Card (simplified for Overview tab) ──
@@ -904,7 +940,8 @@ private fun SleepStageOverviewCard(
 // ── Movement Tab ──
 
 @Composable
-private fun MovementReportTab(@Suppress("UNUSED_PARAMETER") uiModel: ReportUiModel) {
+private fun MovementReportTab(uiModel: ReportUiModel) {
+    val movement = uiModel.movement
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
             "整晚体动分析",
@@ -913,14 +950,16 @@ private fun MovementReportTab(@Suppress("UNUSED_PARAMETER") uiModel: ReportUiMod
             color = Color.White.copy(alpha = 0.55f)
         )
 
-        // Empty state - no movement data model available yet
-        EmptyStateCard(
-            title = "暂无体动数据",
-            subtitle = "本次记录未包含连续体动信号。",
-            iconTint = Color(0xFFFFC857).copy(alpha = 0.40f)
-        )
+        if (movement == null) {
+            EmptyStateCard(
+                title = "暂无体动数据",
+                subtitle = "本次记录未包含连续体动信号。",
+                iconTint = Color(0xFFFFC857).copy(alpha = 0.40f)
+            )
+            DisclaimText("体动数据可作为夜间活动水平的参考，受睡姿变化和环境干扰影响。")
+            return@Column
+        }
 
-        // Placeholder structure showing what will be available
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = Color.White.copy(alpha = 0.06f),
@@ -931,28 +970,14 @@ private fun MovementReportTab(@Suppress("UNUSED_PARAMETER") uiModel: ReportUiMod
                 modifier = Modifier.fillMaxWidth().padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                PlaceholderRow("体动次数", "-- 次")
-                PlaceholderRow("明显体动", "-- 次")
-                PlaceholderRow("最长安静时段", "--")
-                PlaceholderRow("高体动主要发生", "--")
+                PlaceholderRow("体动次数", "${movement.movementCount} 次")
+                PlaceholderRow("明显体动", "${movement.strongMovementCount} 次")
+                PlaceholderRow("最长安静时段", formatMinutesAsHourMinute(movement.longestQuietMinutes))
+                PlaceholderRow("高体动主要发生", movement.highMovementPeriod)
             }
         }
 
-        // Placeholder chart area
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = Color.White.copy(alpha = 0.06f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-            modifier = Modifier.fillMaxWidth().height(140.dp)
-        ) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    "体动趋势图（数据就绪后可用）",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.25f)
-                )
-            }
-        }
+        TrendChartCard(title = "体动趋势图", points = movement.points, color = Color(0xFFFFC857))
 
         DisclaimText("体动数据可作为夜间活动水平的参考，受睡姿变化和环境干扰影响。")
     }
@@ -961,7 +986,8 @@ private fun MovementReportTab(@Suppress("UNUSED_PARAMETER") uiModel: ReportUiMod
 // ── SpO2 Tab ──
 
 @Composable
-private fun SpO2ReportTab() {
+private fun SpO2ReportTab(uiModel: ReportUiModel) {
+    val spo2 = uiModel.spo2
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
             "血氧分析",
@@ -970,14 +996,16 @@ private fun SpO2ReportTab() {
             color = Color.White.copy(alpha = 0.55f)
         )
 
-        // Empty state - no SpO2 data model available yet
-        EmptyStateCard(
-            title = "暂无血氧数据",
-            subtitle = "当前设备或本次记录未包含血氧信号。",
-            iconTint = Color(0xFFFF6B6B).copy(alpha = 0.40f)
-        )
+        if (spo2 == null) {
+            EmptyStateCard(
+                title = "暂无血氧数据",
+                subtitle = "当前设备或本次记录未包含血氧信号。",
+                iconTint = Color(0xFFFF6B6B).copy(alpha = 0.40f)
+            )
+            DisclaimText("本报告仅展示睡眠期间的血氧变化，不能替代医学诊断。")
+            return@Column
+        }
 
-        // Placeholder structure
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = Color.White.copy(alpha = 0.06f),
@@ -988,28 +1016,14 @@ private fun SpO2ReportTab() {
                 modifier = Modifier.fillMaxWidth().padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                PlaceholderRow("平均血氧", "--%")
-                PlaceholderRow("最低血氧", "--%")
-                PlaceholderRow("低氧事件", "-- 次")
-                PlaceholderRow("低于 90%", "-- 分钟")
+                PlaceholderRow("平均血氧", "${spo2.avg}%")
+                PlaceholderRow("最低血氧", "${spo2.min}%")
+                PlaceholderRow("低氧事件", "${spo2.lowEventCount} 次")
+                PlaceholderRow("低于 90%", "${spo2.below90Minutes} 分钟")
             }
         }
 
-        // Placeholder chart area
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = Color.White.copy(alpha = 0.06f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-            modifier = Modifier.fillMaxWidth().height(140.dp)
-        ) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    "血氧趋势图（数据就绪后可用）",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.25f)
-                )
-            }
-        }
+        TrendChartCard(title = "血氧趋势图", points = spo2.points, color = Color(0xFFFF6B6B))
 
         DisclaimText("本报告仅展示睡眠期间的血氧变化，不能替代医学诊断。")
     }
@@ -1018,7 +1032,8 @@ private fun SpO2ReportTab() {
 // ── HRV Tab ──
 
 @Composable
-private fun HrvReportTab(@Suppress("UNUSED_PARAMETER") uiModel: ReportUiModel) {
+private fun HrvReportTab(uiModel: ReportUiModel) {
+    val hrv = uiModel.hrv
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
             "HRV 恢复分析",
@@ -1027,13 +1042,16 @@ private fun HrvReportTab(@Suppress("UNUSED_PARAMETER") uiModel: ReportUiModel) {
             color = Color.White.copy(alpha = 0.55f)
         )
 
-        EmptyStateCard(
-            title = "暂无 HRV 数据",
-            subtitle = "本次记录未包含连续 HRV 信号。",
-            iconTint = Color(0xFFA29BFE).copy(alpha = 0.40f)
-        )
+        if (hrv == null) {
+            EmptyStateCard(
+                title = "暂无 HRV 数据",
+                subtitle = "本次记录未包含连续 HRV 信号。",
+                iconTint = Color(0xFFA29BFE).copy(alpha = 0.40f)
+            )
+            DisclaimText("HRV 可作为身体恢复状态的参考，受压力、运动、饮酒和作息影响。")
+            return@Column
+        }
 
-        // Placeholder structure
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = Color.White.copy(alpha = 0.06f),
@@ -1044,27 +1062,13 @@ private fun HrvReportTab(@Suppress("UNUSED_PARAMETER") uiModel: ReportUiModel) {
                 modifier = Modifier.fillMaxWidth().padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                PlaceholderRow("平均 HRV", "-- ms")
-                PlaceholderRow("夜间趋势", "--")
-                PlaceholderRow("恢复状态", "--")
+                PlaceholderRow("平均 HRV", "${hrv.avg} ms")
+                PlaceholderRow("夜间趋势", "后半夜逐渐稳定")
+                PlaceholderRow("恢复状态", hrv.recoveryLabel)
             }
         }
 
-        // Placeholder chart area
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = Color.White.copy(alpha = 0.06f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-            modifier = Modifier.fillMaxWidth().height(140.dp)
-        ) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    "HRV 趋势图（数据就绪后可用）",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.25f)
-                )
-            }
-        }
+        TrendChartCard(title = "HRV 趋势图", points = hrv.points, color = Color(0xFFA29BFE))
 
         DisclaimText("HRV 可作为身体恢复状态的参考，受压力、运动、饮酒和作息影响。")
     }
@@ -1107,6 +1111,80 @@ private fun EmptyStateCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.32f)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrendChartCard(
+    title: String,
+    points: List<ReportTrendPoint>,
+    color: Color
+) {
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = Color.White.copy(alpha = 0.06f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White.copy(alpha = 0.55f)
+            )
+            if (points.size < 2) {
+                Box(modifier = Modifier.fillMaxWidth().height(140.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        "趋势数据不足",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.25f)
+                    )
+                }
+            } else {
+                Canvas(modifier = Modifier.fillMaxWidth().height(140.dp)) {
+                    val left = 10f
+                    val top = 10f
+                    val right = size.width - 10f
+                    val bottom = size.height - 18f
+                    val minMinute = points.minOf { it.minute }
+                    val maxMinute = points.maxOf { it.minute }.coerceAtLeast(minMinute + 1)
+                    val minValue = points.minOf { it.value }
+                    val maxValue = points.maxOf { it.value }.coerceAtLeast(minValue + 1f)
+
+                    repeat(4) { index ->
+                        val y = top + (bottom - top) * index / 3f
+                        drawLine(
+                            color = Color.White.copy(alpha = 0.06f),
+                            start = Offset(left, y),
+                            end = Offset(right, y),
+                            strokeWidth = 1.dp.toPx()
+                        )
+                    }
+
+                    val mapped = points.map { point ->
+                        val xRatio = (point.minute - minMinute).toFloat() / (maxMinute - minMinute).toFloat()
+                        val yRatio = (point.value - minValue) / (maxValue - minValue)
+                        Offset(
+                            x = left + (right - left) * xRatio,
+                            y = bottom - (bottom - top) * yRatio
+                        )
+                    }
+                    mapped.zipWithNext().forEach { (start, end) ->
+                        drawLine(
+                            color = color.copy(alpha = 0.82f),
+                            start = start,
+                            end = end,
+                            strokeWidth = 3.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                    }
+                }
             }
         }
     }
@@ -1474,6 +1552,69 @@ private fun DetDivider() {
     )
 }
 
+private data class ParsedSummaryPayload(
+    val movement: MovementReportData?,
+    val spo2: Spo2ReportData?,
+    val hrv: HrvReportData?
+)
+
+private fun parseSummaryPayload(payloadJson: String?): ParsedSummaryPayload? {
+    if (payloadJson.isNullOrBlank()) return null
+    return runCatching {
+        val root = JSONObject(payloadJson)
+        ParsedSummaryPayload(
+            movement = root.optJSONObject("movement")?.let { json ->
+                MovementReportData(
+                    movementCount = json.optInt("movementCount"),
+                    strongMovementCount = json.optInt("strongMovementCount"),
+                    longestQuietMinutes = json.optInt("longestQuietMinutes"),
+                    highMovementPeriod = json.optString("highMovementPeriod", "--").ifBlank { "--" },
+                    points = json.optTrendPoints("points")
+                )
+            },
+            spo2 = root.optJSONObject("spo2")?.let { json ->
+                Spo2ReportData(
+                    avg = json.optInt("avg"),
+                    min = json.optInt("min"),
+                    lowEventCount = json.optInt("lowEventCount"),
+                    below90Minutes = json.optInt("below90Minutes"),
+                    points = json.optTrendPoints("points")
+                )
+            },
+            hrv = root.optJSONObject("hrv")?.let { json ->
+                HrvReportData(
+                    avg = json.optInt("avg"),
+                    min = json.optInt("min"),
+                    max = json.optInt("max"),
+                    recoveryLabel = json.optString("recoveryLabel", "--").ifBlank { "--" },
+                    points = json.optTrendPoints("points")
+                )
+            }
+        )
+    }.getOrNull()
+}
+
+private fun JSONObject.optTrendPoints(name: String): List<ReportTrendPoint> {
+    val array = optJSONArray(name) ?: return emptyList()
+    return buildList {
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            add(
+                ReportTrendPoint(
+                    minute = item.optInt("minute"),
+                    value = item.optDouble("value").toFloat()
+                )
+            )
+        }
+    }
+}
+
+private fun formatMinutesAsHourMinute(totalMinutes: Int): String {
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return if (hours > 0) "${hours}h${minutes}m" else "${minutes}m"
+}
+
 // ── Builder ──
 
 private suspend fun buildReportUiModel(
@@ -1538,6 +1679,7 @@ private suspend fun buildReportUiModel(
 
     val avgSignalQuality = summary?.avgSignalQuality
     val dataQualityScore = summary?.dataQualityScore
+    val payloadData = parseSummaryPayload(summary?.payloadJson)
 
     val dataQualityLabel = when {
         (dataQualityScore ?: 0f) >= 0.80f -> "数据良好"
@@ -1573,7 +1715,10 @@ private suspend fun buildReportUiModel(
         wakeAfterSleepOnsetMs = wakeAfterSleepOnsetMs,
         avgSignalQuality = avgSignalQuality,
         dataQualityScore = dataQualityScore,
-        bedDurationMs = totalDurationMs
+        bedDurationMs = totalDurationMs,
+        movement = payloadData?.movement,
+        spo2 = payloadData?.spo2,
+        hrv = payloadData?.hrv
     )
 }
 

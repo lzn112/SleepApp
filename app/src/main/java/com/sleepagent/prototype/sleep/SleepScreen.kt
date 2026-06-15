@@ -61,6 +61,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.sleepagent.prototype.data.SleepLocalPreferences
+import com.sleepagent.prototype.data.SleepPlanPreference
+import com.sleepagent.prototype.data.SleepPreference
 import com.sleepagent.prototype.data.SleepSessionStatus
 import com.sleepagent.prototype.device.DeviceConnectionState
 import com.sleepagent.prototype.device.HeadbandDevice
@@ -104,6 +107,55 @@ private data class SleepPlanUiState(
     val sleepGuardEnabled: Boolean = true
 )
 
+private fun SleepPlanPreference.toUiState() = SleepPlanUiState(
+    bedtime = bedtime,
+    wakeTime = wakeTime,
+    smartWakeEnabled = smartWakeEnabled,
+    smartWakeStart = smartWakeStart,
+    smartWakeEnd = smartWakeEnd,
+    soundAidEnabled = soundAidEnabled,
+    soundAidName = soundAidName,
+    soundDurationMin = soundDurationMin,
+    fadeOutEnabled = fadeOutEnabled,
+    aiCompanionEnabled = aiCompanionEnabled,
+    aiCompanionMode = aiCompanionMode,
+    aiCompanionDurationMin = aiCompanionDurationMin,
+    sleepGuardEnabled = sleepGuardEnabled
+)
+
+private fun SleepPlanUiState.toPreference() = SleepPlanPreference(
+    bedtime = bedtime,
+    wakeTime = wakeTime,
+    smartWakeEnabled = smartWakeEnabled,
+    smartWakeStart = smartWakeStart,
+    smartWakeEnd = smartWakeEnd,
+    soundAidEnabled = soundAidEnabled,
+    soundAidName = soundAidName,
+    soundDurationMin = soundDurationMin,
+    fadeOutEnabled = fadeOutEnabled,
+    aiCompanionEnabled = aiCompanionEnabled,
+    aiCompanionMode = aiCompanionMode,
+    aiCompanionDurationMin = aiCompanionDurationMin,
+    sleepGuardEnabled = sleepGuardEnabled
+)
+
+private fun SleepPreference.toDefaultPlan() = SleepPlanPreference(
+    bedtime = defaultBedtime,
+    wakeTime = defaultWakeTime,
+    smartWakeEnabled = smartWakeEnabled,
+    smartWakeStart = adjustTime(defaultWakeTime, -30),
+    smartWakeEnd = defaultWakeTime,
+    soundAidEnabled = soundAidPreference.isNotBlank(),
+    soundAidName = when {
+        "雨声" in soundAidPreference -> "雨声"
+        "白噪音" in soundAidPreference -> "白噪音"
+        "海浪" in soundAidPreference -> "海浪"
+        "森林" in soundAidPreference -> "森林"
+        else -> "雨声"
+    },
+    aiCompanionEnabled = aiCompanionEnabled
+)
+
 private data class SleepDeviceUiStatus(
     val isStreaming: Boolean = false,
     val connectedDevice: HeadbandDevice? = null,
@@ -145,7 +197,11 @@ fun SleepScreen() {
     var permissionMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var sleepScreenMode by rememberSaveable { mutableStateOf(SleepScreenMode.Setup.name) }
     var selectedDeviceId by rememberSaveable { mutableStateOf<String?>(null) }
-    var sleepPlan by rememberSaveable { mutableStateOf(SleepPlanUiState()) }
+    var sleepPlan by remember {
+        val savedPlan = SleepLocalPreferences.loadSleepPlan(appContext)
+        val defaultPlan = SleepLocalPreferences.loadSleepPreference(appContext).toDefaultPlan()
+        mutableStateOf((savedPlan ?: defaultPlan).toUiState())
+    }
 
     DisposableEffect(appContext) {
         val connection = object : ServiceConnection {
@@ -193,7 +249,10 @@ fun SleepScreen() {
         SleepScreenMode.Setup -> {
             SleepSetupScreen(
                 sleepPlan = sleepPlan,
-                onPlanChange = { sleepPlan = it },
+                onPlanChange = { nextPlan ->
+                    sleepPlan = nextPlan
+                    SleepLocalPreferences.saveSleepPlan(appContext, nextPlan.toPreference())
+                },
                 useMockManager = useMockManager,
                 onUseMockManagerChange = { useMockManager = it },
                 connectionState = connectionState,
@@ -290,7 +349,7 @@ fun SleepScreen() {
                                 SleepRecordingService.requestForegroundStart(appContext)
                                 service.startRecording(useMockManager, connectedDevice)
                                 sleepScreenMode = SleepScreenMode.Monitoring.name
-                                uiMessage = "已进入睡眠监测页。"
+                                uiMessage = null
                             }
                         } finally {
                             isStartingSleep = false
@@ -578,8 +637,8 @@ private fun SleepMonitorScreen(
     val statusMessage = uiMessage ?: deviceStatus.message ?: signalState
 
     ScreenContainer(
-        title = "正在守护你的睡眠",
-        subtitle = "设备连接稳定，明早会为你生成睡眠复盘。"
+        title = "",
+        subtitle = ""
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             // Error banner
@@ -619,7 +678,7 @@ private fun SleepMonitorScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    "返回准备页",
+                    "退出睡眠阶段",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Medium,
                     color = Color.White.copy(alpha = 0.48f),
@@ -714,14 +773,23 @@ private fun SleepPrepareHeroCard(
 
             // Active mechanisms summary
             val activeItems = mutableListOf<String>()
-            if (plan.soundAidEnabled) activeItems.add("${plan.soundAidName} ${plan.soundDurationMin}分钟")
-            if (plan.aiCompanionEnabled) activeItems.add("${plan.aiCompanionMode} ${plan.aiCompanionDurationMin}分钟")
+            if (plan.soundAidEnabled) {
+                activeItems.add("助眠声音：${plan.soundAidName} · ${plan.soundDurationMin} 分钟" +
+                    if (plan.fadeOutEnabled) "后渐弱" else "后停止")
+            }
+            if (plan.aiCompanionEnabled) {
+                activeItems.add("AI 陪伴：${plan.aiCompanionMode} · ${plan.aiCompanionDurationMin} 分钟")
+            }
             if (activeItems.isNotEmpty()) {
-                Text(
-                    "已开启：${activeItems.joinToString(" · ")}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.44f)
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    activeItems.forEach { item ->
+                        Text(
+                            item,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.44f)
+                        )
+                    }
+                }
             }
 
             Button(
@@ -783,11 +851,11 @@ private fun SleepTimePlanCard(
                     label = "预计入睡",
                     time = plan.bedtime,
                     onMinus = {
-                        val adjusted = adjustTime(plan.bedtime, -30)
+                        val adjusted = adjustTime(plan.bedtime, -15)
                         onPlanChange(plan.copy(bedtime = adjusted))
                     },
                     onPlus = {
-                        val adjusted = adjustTime(plan.bedtime, 30)
+                        val adjusted = adjustTime(plan.bedtime, 15)
                         onPlanChange(plan.copy(bedtime = adjusted))
                     }
                 )
@@ -795,12 +863,20 @@ private fun SleepTimePlanCard(
                     label = "目标起床",
                     time = plan.wakeTime,
                     onMinus = {
-                        val adjusted = adjustTime(plan.wakeTime, -30)
-                        onPlanChange(plan.copy(wakeTime = adjusted))
+                        val adjusted = adjustTime(plan.wakeTime, -15)
+                        onPlanChange(plan.copy(
+                            wakeTime = adjusted,
+                            smartWakeStart = adjustTime(adjusted, -30),
+                            smartWakeEnd = adjusted
+                        ))
                     },
                     onPlus = {
-                        val adjusted = adjustTime(plan.wakeTime, 30)
-                        onPlanChange(plan.copy(wakeTime = adjusted))
+                        val adjusted = adjustTime(plan.wakeTime, 15)
+                        onPlanChange(plan.copy(
+                            wakeTime = adjusted,
+                            smartWakeStart = adjustTime(adjusted, -30),
+                            smartWakeEnd = adjusted
+                        ))
                     }
                 )
             }
@@ -925,6 +1001,30 @@ private fun SmartWakeCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.48f)
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(15, 30, 45, 60).forEach { mins ->
+                        val selected = plan.smartWakeStart == adjustTime(plan.wakeTime, -mins)
+                        Surface(
+                            onClick = {
+                                onPlanChange(plan.copy(
+                                    smartWakeStart = adjustTime(plan.wakeTime, -mins),
+                                    smartWakeEnd = plan.wakeTime
+                                ))
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f),
+                            border = if (selected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null
+                        ) {
+                            Text(
+                                "${mins}分钟",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
                 Text(
                     "唤醒窗口：${plan.smartWakeStart} - ${plan.smartWakeEnd}   |   最晚唤醒：${plan.smartWakeEnd}",
                     style = MaterialTheme.typography.labelSmall,
@@ -1013,10 +1113,26 @@ private fun SoundAidCard(
                     }
                 }
                 Text(
-                    "${plan.soundAidName} · ${plan.soundDurationMin} 分钟后渐弱",
+                    "${plan.soundAidName} · ${plan.soundDurationMin} 分钟" +
+                        if (plan.fadeOutEnabled) "后渐弱" else "后停止",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.44f)
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "入睡后渐弱",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.50f)
+                    )
+                    ToggleSwitch(
+                        checked = plan.fadeOutEnabled,
+                        onCheckedChange = { onPlanChange(plan.copy(fadeOutEnabled = it)) }
+                    )
+                }
             } else {
                 Text(
                     "辅助放松入睡，不会整夜播放。",
@@ -1087,6 +1203,25 @@ private fun AiCompanionCard(
                     fontWeight = FontWeight.Medium,
                     color = Color(0xFFA29BFE)
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(5, 10, 15).forEach { mins ->
+                        val selected = plan.aiCompanionDurationMin == mins
+                        Surface(
+                            onClick = { onPlanChange(plan.copy(aiCompanionDurationMin = mins)) },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (selected) Color(0xFFA29BFE).copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f),
+                            border = if (selected) BorderStroke(1.dp, Color(0xFFA29BFE).copy(alpha = 0.30f)) else null
+                        ) {
+                            Text(
+                                "${mins}分钟",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (selected) Color(0xFFA29BFE) else Color.White.copy(alpha = 0.44f),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
                 Text(
                     "睡前我会用低刺激的方式陪你放松，结束后自动安静。",
                     style = MaterialTheme.typography.bodySmall,
@@ -1319,6 +1454,8 @@ private fun AdvancedDebugSection(
     lastConnectionError: String?,
     lastScanError: String?
 ) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = Color.White.copy(alpha = 0.06f),
@@ -1329,51 +1466,75 @@ private fun AdvancedDebugSection(
             modifier = Modifier.fillMaxWidth().padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                "高级模式",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.38f)
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FilterChip(
-                    selected = !useMockManager,
-                    onClick = { onUseMockManagerChange(false) },
-                    label = { Text("Real BLE", style = MaterialTheme.typography.labelSmall) }
-                )
-                FilterChip(
-                    selected = useMockManager,
-                    onClick = { onUseMockManagerChange(true) },
-                    label = { Text("Mock", style = MaterialTheme.typography.labelSmall) }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "高级模式",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White.copy(alpha = 0.38f)
+                    )
+                    Text(
+                        "数据源与连接诊断默认收起",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.26f)
+                    )
+                }
+                Text(
+                    if (expanded) "收起" else "展开",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.40f)
                 )
             }
-            if (connectionDiagnostics.isNotEmpty()) {
-                Text(
-                    "连接诊断: ${connectionDiagnostics.joinToString(" · ")}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.26f)
-                )
-            }
-            if (scanDiagnostics.isNotEmpty()) {
-                Text(
-                    "扫描诊断: ${scanDiagnostics.joinToString(" · ")}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.26f)
-                )
-            }
-            if (lastConnectionError != null) {
-                Text(
-                    "连接错误: $lastConnectionError",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFFFF6B6B).copy(alpha = 0.50f)
-                )
-            }
-            if (lastScanError != null) {
-                Text(
-                    "扫描错误: $lastScanError",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFFFF6B6B).copy(alpha = 0.50f)
-                )
+
+            if (expanded) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FilterChip(
+                        selected = !useMockManager,
+                        onClick = { onUseMockManagerChange(false) },
+                        label = { Text("Real BLE", style = MaterialTheme.typography.labelSmall) }
+                    )
+                    FilterChip(
+                        selected = useMockManager,
+                        onClick = { onUseMockManagerChange(true) },
+                        label = { Text("Mock", style = MaterialTheme.typography.labelSmall) }
+                    )
+                }
+                if (connectionDiagnostics.isNotEmpty()) {
+                    Text(
+                        "连接诊断: ${connectionDiagnostics.joinToString(" · ")}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.26f)
+                    )
+                }
+                if (scanDiagnostics.isNotEmpty()) {
+                    Text(
+                        "扫描诊断: ${scanDiagnostics.joinToString(" · ")}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.26f)
+                    )
+                }
+                if (lastConnectionError != null) {
+                    Text(
+                        "连接错误: $lastConnectionError",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFFFF6B6B).copy(alpha = 0.50f)
+                    )
+                }
+                if (lastScanError != null) {
+                    Text(
+                        "扫描错误: $lastScanError",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFFFF6B6B).copy(alpha = 0.50f)
+                    )
+                }
             }
         }
     }
@@ -1400,15 +1561,9 @@ private fun SleepGuardHeroCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "正在守护你的睡眠",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.94f)
-                )
                 StatusBadge(
                     text = if (isStable) "连接稳定" else "连接异常",
                     color = if (isStable) Color(0xFF6C8CFF) else Color(0xFFFF6B6B)
@@ -1469,8 +1624,11 @@ private fun TonightPlanSummaryCard(plan: SleepPlanUiState) {
             val items = mutableListOf<String>()
             items.add("预计起床：${plan.wakeTime}")
             if (plan.smartWakeEnabled) items.add("智能唤醒：${plan.smartWakeStart} - ${plan.smartWakeEnd}")
-            if (plan.soundAidEnabled) items.add("助眠声音：${plan.soundAidName} · ${plan.soundDurationMin} 分钟后渐弱")
-            if (plan.aiCompanionEnabled) items.add("AI 陪伴：${plan.aiCompanionMode} ${plan.aiCompanionDurationMin} 分钟")
+            if (plan.soundAidEnabled) {
+                items.add("助眠声音：${plan.soundAidName} · ${plan.soundDurationMin} 分钟" +
+                    if (plan.fadeOutEnabled) "后渐弱" else "后停止")
+            }
+            if (plan.aiCompanionEnabled) items.add("AI 陪伴：${plan.aiCompanionMode} · ${plan.aiCompanionDurationMin} 分钟")
             items.forEach { item ->
                 Text(
                     item,

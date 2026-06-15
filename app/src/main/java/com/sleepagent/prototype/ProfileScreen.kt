@@ -57,8 +57,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.sleepagent.prototype.data.MockDataGenerator
-import com.sleepagent.prototype.data.SleepStorageRepository
+import com.sleepagent.prototype.data.DemoWeekDataSeeder
+import com.sleepagent.prototype.data.SleepLocalPreferences
+import com.sleepagent.prototype.data.SleepPreference
+import com.sleepagent.prototype.data.UserProfilePreference
 import com.sleepagent.prototype.ui.theme.SleepAgentPrototypeTheme
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -76,6 +78,7 @@ private data class SectionRow(
 
 private data class UserProfileUiState(
     val nickname: String = "用户昵称",
+    val avatarEmoji: String = "🌙",
     val gender: String = "未设置",
     val ageRange: String = "未设置",
     val currentGoal: String = "更快入睡"
@@ -98,6 +101,46 @@ private val genderOptions = listOf("男", "女", "不想填写")
 private val ageRangeOptions = listOf("18-25", "26-35", "36-45", "46+")
 private val soundAidOptions = listOf("呼吸放松", "白噪音", "雨声", "海浪", "睡前故事")
 
+private fun UserProfilePreference.toUiState() = UserProfileUiState(
+    nickname = nickname,
+    avatarEmoji = avatarEmoji,
+    gender = gender,
+    ageRange = ageRange,
+    currentGoal = currentGoal
+)
+
+private fun UserProfileUiState.toPreference() = UserProfilePreference(
+    nickname = nickname,
+    avatarEmoji = avatarEmoji,
+    gender = gender,
+    ageRange = ageRange,
+    currentGoal = currentGoal
+)
+
+private fun SleepPreference.toUiState() = SleepPreferenceUiState(
+    targetSleepHours = targetSleepHours,
+    defaultBedtime = defaultBedtime,
+    defaultWakeTime = defaultWakeTime,
+    bedtimeReminder = bedtimeReminder,
+    smartWakeEnabled = smartWakeEnabled,
+    soundAidPreferences = soundAidPreference.split("+")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .toSet()
+        .ifEmpty { setOf("呼吸放松", "白噪音") },
+    aiCompanionEnabled = aiCompanionEnabled
+)
+
+private fun SleepPreferenceUiState.toPreference() = SleepPreference(
+    targetSleepHours = targetSleepHours,
+    defaultBedtime = defaultBedtime,
+    defaultWakeTime = defaultWakeTime,
+    bedtimeReminder = bedtimeReminder,
+    smartWakeEnabled = smartWakeEnabled,
+    soundAidPreference = soundAidPreferences.joinToString(" + "),
+    aiCompanionEnabled = aiCompanionEnabled
+)
+
 // ── Main entry ──
 
 @Composable
@@ -106,11 +149,9 @@ fun ProfileScreenContent(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val repository = remember { SleepStorageRepository(context) }
-    val generator = remember { MockDataGenerator(repository) }
 
-    var profileState by rememberSaveable { mutableStateOf(UserProfileUiState()) }
-    var preferenceState by rememberSaveable { mutableStateOf(SleepPreferenceUiState()) }
+    var profileState by remember { mutableStateOf(SleepLocalPreferences.loadUserProfile(context).toUiState()) }
+    var preferenceState by remember { mutableStateOf(SleepLocalPreferences.loadSleepPreference(context).toUiState()) }
     var showEditProfile by rememberSaveable { mutableStateOf(false) }
     var showEditPreference by rememberSaveable { mutableStateOf(false) }
 
@@ -121,6 +162,7 @@ fun ProfileScreenContent(
                 onDismiss = { showEditProfile = false },
                 onSave = {
                     profileState = it
+                    SleepLocalPreferences.saveUserProfile(context, it.toPreference())
                     showEditProfile = false
                 }
             )
@@ -132,6 +174,7 @@ fun ProfileScreenContent(
                 onDismiss = { showEditPreference = false },
                 onSave = {
                     preferenceState = it
+                    SleepLocalPreferences.saveSleepPreference(context, it.toPreference())
                     showEditPreference = false
                 }
             )
@@ -144,8 +187,7 @@ fun ProfileScreenContent(
             onEditPreference = { showEditPreference = true },
             onHistoryClick = onHistoryClick,
             scope = scope,
-            context = context,
-            generator = generator
+            context = context
         )
     }
 }
@@ -158,8 +200,7 @@ private fun ProfileMainContent(
     onEditPreference: () -> Unit,
     onHistoryClick: () -> Unit,
     scope: kotlinx.coroutines.CoroutineScope,
-    context: android.content.Context,
-    generator: MockDataGenerator
+    context: android.content.Context
 ) {
     Box(
         modifier = Modifier
@@ -221,8 +262,16 @@ private fun ProfileMainContent(
                     onClick = {
                         scope.launch {
                             android.widget.Toast.makeText(context, "正在生成演示数据...", android.widget.Toast.LENGTH_SHORT).show()
-                            generator.generateLastSevenDays()
-                            android.widget.Toast.makeText(context, "演示数据生成成功！", android.widget.Toast.LENGTH_SHORT).show()
+                            val result = DemoWeekDataSeeder.seedPastWeekAndTonight(
+                                context = context,
+                                force = true,
+                                seedTonightAsCompleted = false
+                            )
+                            android.widget.Toast.makeText(
+                                context,
+                                "已生成${result.completedSessionIds.size}晚数据，并写入今晚计划",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
                         }
                     },
                     shape = RoundedCornerShape(20.dp),
@@ -230,7 +279,7 @@ private fun ProfileMainContent(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        "生成演示数据",
+                        "生成近一周演示数据",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(alpha = 0.24f),
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
@@ -269,11 +318,10 @@ private fun ProfileHeroCard(
                         .background(Color(0xFF6C8CFF).copy(alpha = 0.18f), RoundedCornerShape(22.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = null,
-                        tint = Color(0xFF6C8CFF),
-                        modifier = Modifier.size(32.dp)
+                    Text(
+                        profile.avatarEmoji,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = Color(0xFF6C8CFF)
                     )
                 }
                 Column(
@@ -690,6 +738,7 @@ private fun EditProfileSheet(
     onSave: (UserProfileUiState) -> Unit
 ) {
     var nickname by rememberSaveable { mutableStateOf(profile.nickname) }
+    var avatarEmoji by rememberSaveable { mutableStateOf(profile.avatarEmoji) }
     var gender by rememberSaveable { mutableStateOf(profile.gender) }
     var ageRange by rememberSaveable { mutableStateOf(profile.ageRange) }
     var currentGoal by rememberSaveable { mutableStateOf(profile.currentGoal) }
@@ -700,6 +749,7 @@ private fun EditProfileSheet(
         onSave = {
             onSave(profile.copy(
                 nickname = nickname.trim().ifBlank { profile.nickname },
+                avatarEmoji = avatarEmoji.trim().ifBlank { profile.avatarEmoji },
                 gender = gender,
                 ageRange = ageRange,
                 currentGoal = currentGoal
@@ -707,6 +757,14 @@ private fun EditProfileSheet(
         }
     ) {
         GroupLabel("头像 / 昵称")
+        OutlinedTextField(
+            value = avatarEmoji,
+            onValueChange = { avatarEmoji = it.take(2) },
+            singleLine = true,
+            label = { Text("头像 Emoji") },
+            colors = darkFieldColors(),
+            modifier = Modifier.fillMaxWidth()
+        )
         OutlinedTextField(
             value = nickname,
             onValueChange = { nickname = it },
@@ -738,7 +796,7 @@ private fun SleepPreferenceEditSheet(
     var defaultWakeTime by rememberSaveable { mutableStateOf(preference.defaultWakeTime) }
     var bedtimeReminder by rememberSaveable { mutableStateOf(preference.bedtimeReminder) }
     var smartWakeEnabled by rememberSaveable { mutableStateOf(preference.smartWakeEnabled) }
-    var soundAidPreferences by rememberSaveable { mutableStateOf(preference.soundAidPreferences) }
+    var soundAidPreferences by remember { mutableStateOf(preference.soundAidPreferences) }
     var aiCompanionEnabled by rememberSaveable { mutableStateOf(preference.aiCompanionEnabled) }
 
     EditSheetScaffold(
