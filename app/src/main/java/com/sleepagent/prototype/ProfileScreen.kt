@@ -262,16 +262,25 @@ private fun ProfileMainContent(
                     onClick = {
                         scope.launch {
                             android.widget.Toast.makeText(context, "正在生成演示数据...", android.widget.Toast.LENGTH_SHORT).show()
-                            val result = DemoWeekDataSeeder.seedPastWeekAndTonight(
-                                context = context,
-                                force = true,
-                                seedTonightAsCompleted = false
-                            )
-                            android.widget.Toast.makeText(
-                                context,
-                                "已生成${result.completedSessionIds.size}晚数据，并写入今晚计划",
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
+                            runCatching {
+                                DemoWeekDataSeeder.seedPastWeekAndTonight(
+                                    context = context,
+                                    force = true,
+                                    seedTonightAsCompleted = false
+                                )
+                            }.onSuccess { result ->
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "已生成${result.completedSessionIds.size}晚数据，并写入今晚计划",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }.onFailure { error ->
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "演示数据写入失败：${error.message ?: "未知错误"}",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
                         }
                     },
                     shape = RoundedCornerShape(20.dp),

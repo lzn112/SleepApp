@@ -170,6 +170,10 @@ class MockHeadbandDeviceManager(
             current = safe.current,
             amplitude = safe.amplitude,
             channel = safe.channel,
+            frequency = safe.frequency,
+            negative = safe.negative,
+            wave = safe.wave,
+            waveDataHex = safe.waveDataHex,
             lastCommandAt = System.currentTimeMillis()
         )
         _deviceStatus.update {

@@ -34,6 +34,13 @@ class SleepStorageDatabaseHelper(
         db.execSQL(CREATE_AI_EVIDENCE_LINK_REPORT_INDEX)
     }
 
+    override fun onOpen(db: SQLiteDatabase) {
+        super.onOpen(db)
+        if (!db.isReadOnly) {
+            ensureSchemaCompatibility(db)
+        }
+    }
+
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion == newVersion) return
         var currentVersion = oldVersion
@@ -43,6 +50,11 @@ class SleepStorageDatabaseHelper(
             currentVersion = 2
         }
 
+        if (currentVersion < 3) {
+            migrateToVersion3(db)
+            currentVersion = 3
+        }
+
         if (currentVersion != newVersion) {
             rebuildAllTables(db)
         }
@@ -50,7 +62,7 @@ class SleepStorageDatabaseHelper(
 
     companion object {
         private const val DATABASE_NAME = "sleep_storage.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
 
         const val TABLE_SLEEP_SESSION = "sleep_session"
         const val TABLE_SLEEP_EPOCH = "sleep_epoch"
@@ -299,6 +311,7 @@ class SleepStorageDatabaseHelper(
                 $COLUMN_EVENT_SOURCE TEXT NOT NULL,
                 $COLUMN_PAYLOAD_JSON TEXT,
                 $COLUMN_CREATED_AT_EPOCH_MS INTEGER NOT NULL,
+                $COLUMN_UPDATED_AT_EPOCH_MS INTEGER NOT NULL,
                 FOREIGN KEY($COLUMN_SESSION_ID)
                     REFERENCES $TABLE_SLEEP_SESSION($COLUMN_SESSION_ID)
                     ON DELETE CASCADE
@@ -401,6 +414,27 @@ class SleepStorageDatabaseHelper(
         }
     }
 
+    private fun migrateToVersion3(db: SQLiteDatabase) {
+        db.beginTransaction()
+        try {
+            ensureSchemaCompatibility(db)
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    private fun ensureSchemaCompatibility(db: SQLiteDatabase) {
+        if (hasTable(db, "sleep_event")) {
+            ensureColumn(
+                db = db,
+                tableName = "sleep_event",
+                columnName = COLUMN_UPDATED_AT_EPOCH_MS,
+                definition = "$COLUMN_UPDATED_AT_EPOCH_MS INTEGER NOT NULL DEFAULT 0"
+            )
+        }
+    }
+
     private fun rebuildAllTables(db: SQLiteDatabase) {
         db.execSQL("DROP TABLE IF EXISTS ai_evidence_link")
         db.execSQL("DROP TABLE IF EXISTS sleep_ai_report")
@@ -439,5 +473,17 @@ class SleepStorageDatabaseHelper(
             }
         }
         return false
+    }
+
+    private fun hasTable(
+        db: SQLiteDatabase,
+        tableName: String
+    ): Boolean {
+        db.rawQuery(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+            arrayOf(tableName)
+        ).use { cursor ->
+            return cursor.moveToFirst()
+        }
     }
 }

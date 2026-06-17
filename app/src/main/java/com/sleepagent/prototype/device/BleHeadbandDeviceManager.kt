@@ -448,6 +448,10 @@ class BleHeadbandDeviceManager(
                 current = safe.current,
                 amplitude = safe.amplitude,
                 channel = safe.channel,
+                frequency = safe.frequency,
+                negative = safe.negative,
+                wave = safe.wave,
+                waveDataHex = safe.waveDataHex,
                 lastCommandAt = System.currentTimeMillis()
             )
             _deviceStatus.update {
@@ -469,7 +473,11 @@ class BleHeadbandDeviceManager(
                 boost = tdcsState.boost,
                 current = 0,
                 amplitude = 0,
-                channel = safeChannel
+                channel = safeChannel,
+                frequency = tdcsState.frequency,
+                negative = tdcsState.negative,
+                wave = tdcsState.wave,
+                waveDataHex = tdcsState.waveDataHex
             )
             val (payload1, payload2) = buildTdcsPayloadPair(safe, active = false)
             writeCommand(payload1.toBleTextPayload())

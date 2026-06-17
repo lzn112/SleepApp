@@ -87,12 +87,10 @@ import com.sleepagent.prototype.device.HeadbandRawPacket
 import com.sleepagent.prototype.device.HeadbandStatus
 import com.sleepagent.prototype.device.MissingDevicePermissionsException
 import com.sleepagent.prototype.device.SleepOpticalMode
-import com.sleepagent.prototype.device.TDCS_DEFAULT_AMPLITUDE
-import com.sleepagent.prototype.device.TDCS_DEFAULT_BOOST
-import com.sleepagent.prototype.device.TDCS_DEFAULT_CHANNEL
-import com.sleepagent.prototype.device.TDCS_DEFAULT_CURRENT
 import com.sleepagent.prototype.device.TdcsConfig
 import com.sleepagent.prototype.device.TdcsState
+import com.sleepagent.prototype.device.tdcsConstantWaveHex
+import com.sleepagent.prototype.device.tdcsPositiveHalfSineHex
 import com.sleepagent.prototype.sleep.processing.SleepSignalSnapshot
 import com.sleepagent.prototype.sleep.staging.SleepStageSnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -107,6 +105,11 @@ private enum class SleepScreenMode {
     Setup,
     Monitoring
 }
+
+private const val SLEEP_TDCS_DEFAULT_BOOST = 3
+private const val SLEEP_TDCS_DEFAULT_CHANNEL = "0001"
+private const val SLEEP_TDCS_DEFAULT_CURRENT = 2
+private const val SLEEP_TDCS_DEFAULT_AMPLITUDE = 50
 
 private data class SleepPlanUiState(
     val bedtime: String = "23:30",
@@ -242,12 +245,13 @@ data class StimulationLevel(
     val amplitude: Int
 )
 
+// Unified 5-level tDCS parameters shared by UI selection and live command mapping.
 val stimulationLevels = listOf(
-    StimulationLevel(1, "轻柔", boost = 1, current = 1, amplitude = 10),
-    StimulationLevel(2, "舒适", boost = 1, current = 1, amplitude = 25),
-    StimulationLevel(3, "标准", boost = 1, current = 1, amplitude = 40),
-    StimulationLevel(4, "加强", boost = 1, current = 2, amplitude = 30),
-    StimulationLevel(5, "强效", boost = 2, current = 2, amplitude = 50)
+    StimulationLevel(level = 1, displayName = "轻柔", boost = 1, current = 1, amplitude = 10),
+    StimulationLevel(level = 2, displayName = "舒适", boost = 1, current = 1, amplitude = 25),
+    StimulationLevel(level = 3, displayName = "标准", boost = 1, current = 1, amplitude = 40),
+    StimulationLevel(level = 4, displayName = "加强", boost = 1, current = 2, amplitude = 30),
+    StimulationLevel(level = 5, displayName = "强效", boost = 2, current = 2, amplitude = 50)
 )
 
 // ── Intervention States ──
@@ -263,6 +267,27 @@ data class ElectricalInterventionState(
     val pendingMode: StimulationMode? = null,
     val pendingLevel: Int? = null
 )
+
+private fun ElectricalInterventionState.toTdcsConfig(): TdcsConfig {
+    val levelConfig = stimulationLevels.find { it.level == level } ?: stimulationLevels.first()
+    val waveDataHex = when (mode) {
+        StimulationMode.THETA_5HZ,
+        StimulationMode.ALPHA_10HZ -> tdcsPositiveHalfSineHex()
+        StimulationMode.TDCS_LIKE,
+        StimulationMode.BIPHASIC_5HZ,
+        StimulationMode.CES_100HZ -> tdcsConstantWaveHex()
+    }
+    return TdcsConfig(
+        boost = levelConfig.boost,
+        current = levelConfig.current,
+        amplitude = levelConfig.amplitude,
+        channel = SLEEP_TDCS_DEFAULT_CHANNEL,
+        frequency = mode.frequency,
+        negative = mode.negative,
+        wave = 2,
+        waveDataHex = waveDataHex
+    )
+}
 
 enum class SoundType(val label: String) {
     RAIN("雨声"),
@@ -309,8 +334,8 @@ fun SleepScreen() {
         val defaultPlan = SleepLocalPreferences.loadSleepPreference(appContext).toDefaultPlan()
         mutableStateOf((savedPlan ?: defaultPlan).toUiState())
     }
-    var electricalState by rememberSaveable { mutableStateOf(ElectricalInterventionState()) }
-    var soundState by rememberSaveable { mutableStateOf(SoundInterventionState()) }
+    var electricalState by remember { mutableStateOf(ElectricalInterventionState()) }
+    var soundState by remember { mutableStateOf(SoundInterventionState()) }
 
     DisposableEffect(appContext) {
         val connection = object : ServiceConnection {
@@ -461,6 +486,25 @@ fun SleepScreen() {
                             ) {
                                 SleepRecordingService.requestForegroundStart(appContext)
                                 service.startRecording(useMockManager, connectedDevice)
+                                electricalState = if (electricalState.enabled) {
+                                    runCatching {
+                                        service.startTdcs(electricalState.toTdcsConfig())
+                                    }.onFailure { error ->
+                                        uiMessage = "节律微电启动失败: ${error.message ?: "unknown error"}"
+                                    }.fold(
+                                        onSuccess = {
+                                            electricalState.copy(
+                                                runState = InterventionRunState.RUNNING,
+                                                startedAt = System.currentTimeMillis()
+                                            )
+                                        },
+                                        onFailure = {
+                                            electricalState.copy(runState = InterventionRunState.ERROR)
+                                        }
+                                    )
+                                } else {
+                                    electricalState.copy(runState = InterventionRunState.DISABLED, startedAt = null)
+                                }
                                 sleepScreenMode = SleepScreenMode.Monitoring.name
                                 uiMessage = null
                             }
@@ -521,6 +565,10 @@ fun SleepScreen() {
         SleepScreenMode.Monitoring -> {
             SleepMonitorScreen(
                 sleepPlan = sleepPlan,
+                onPlanChange = { nextPlan ->
+                    sleepPlan = nextPlan
+                    SleepLocalPreferences.saveSleepPlan(appContext, nextPlan.toPreference())
+                },
                 electricalState = electricalState,
                 onElectricalStateChange = { electricalState = it },
                 soundState = soundState,
@@ -863,10 +911,11 @@ private fun DividerLine() {
 @Composable
 private fun SleepMonitorScreen(
     sleepPlan: SleepPlanUiState,
+    onPlanChange: (SleepPlanUiState) -> Unit,
     electricalState: ElectricalInterventionState,
-    @Suppress("UNUSED_PARAMETER") onElectricalStateChange: (ElectricalInterventionState) -> Unit,
+    onElectricalStateChange: (ElectricalInterventionState) -> Unit,
     soundState: SoundInterventionState,
-    @Suppress("UNUSED_PARAMETER") onSoundStateChange: (SoundInterventionState) -> Unit,
+    onSoundStateChange: (SoundInterventionState) -> Unit,
     connectionState: DeviceConnectionState,
     deviceStatus: SleepDeviceUiStatus,
     uiMessage: String?,
@@ -885,9 +934,9 @@ private fun SleepMonitorScreen(
 ) {
     var hrvChannel by rememberSaveable { mutableStateOf(0) }
     var fnirsChannel by rememberSaveable { mutableStateOf(0) }
-    var tdcsBoostText by rememberSaveable { mutableStateOf(TDCS_DEFAULT_BOOST.toString()) }
-    var tdcsCurrentText by rememberSaveable { mutableStateOf(TDCS_DEFAULT_CURRENT.toString()) }
-    var tdcsAmplitudeText by rememberSaveable { mutableStateOf(TDCS_DEFAULT_AMPLITUDE.toString()) }
+    var tdcsBoostText by rememberSaveable { mutableStateOf(SLEEP_TDCS_DEFAULT_BOOST.toString()) }
+    var tdcsCurrentText by rememberSaveable { mutableStateOf(SLEEP_TDCS_DEFAULT_CURRENT.toString()) }
+    var tdcsAmplitudeText by rememberSaveable { mutableStateOf(SLEEP_TDCS_DEFAULT_AMPLITUDE.toString()) }
     var tdcsInputMessage by rememberSaveable { mutableStateOf<String?>(null) }
 
     // Monitor sheet states
@@ -986,9 +1035,51 @@ private fun SleepMonitorScreen(
                 tdcsInputMessage = tdcsInputMessage,
                 onOpticalModeChange = onOpticalModeChange,
                 onStartTdcs = { config -> onStartTdcs(config) },
-                onStopTdcs = { onStopTdcs(TDCS_DEFAULT_CHANNEL) }
+                onStopTdcs = { onStopTdcs(SLEEP_TDCS_DEFAULT_CHANNEL) }
             )
         }
+    }
+
+    if (showElectricalSheet) {
+        ElectricalStimulationSheet(
+            state = electricalState,
+            onDismiss = { showElectricalSheet = false },
+            onSave = {
+                val nextState = it.copy(
+                    runState = if (it.enabled) InterventionRunState.RUNNING else InterventionRunState.DISABLED,
+                    startedAt = if (it.enabled) System.currentTimeMillis() else null
+                )
+                onElectricalStateChange(nextState)
+                if (it.enabled) {
+                    onStartTdcs(it.toTdcsConfig())
+                } else {
+                    onStopTdcs(SLEEP_TDCS_DEFAULT_CHANNEL)
+                }
+                showElectricalSheet = false
+            }
+        )
+    }
+
+    if (showSoundSheet) {
+        SoundInterventionSheet(
+            state = soundState,
+            onDismiss = { showSoundSheet = false },
+            onSave = {
+                onSoundStateChange(it)
+                showSoundSheet = false
+            }
+        )
+    }
+
+    if (showSmartWakeSheet) {
+        SmartWakeSheet(
+            plan = sleepPlan,
+            onDismiss = { showSmartWakeSheet = false },
+            onSave = {
+                onPlanChange(it)
+                showSmartWakeSheet = false
+            }
+        )
     }
 }
 
@@ -1359,7 +1450,15 @@ private fun ElectricalStimulationSheet(
             // Save / Close
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Surface(
-                    onClick = onDismiss,
+                    onClick = {
+                        onSave(
+                            state.copy(
+                                enabled = false,
+                                runState = InterventionRunState.DISABLED,
+                                startedAt = null
+                            )
+                        )
+                    },
                     shape = RoundedCornerShape(14.dp),
                     color = Color.White.copy(alpha = 0.08f),
                     modifier = Modifier.weight(1f)
