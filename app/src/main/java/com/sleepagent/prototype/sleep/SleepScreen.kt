@@ -118,7 +118,7 @@ private data class SleepPlanUiState(
     val smartWakeStart: String = "07:00",
     val smartWakeEnd: String = "07:30",
     val soundAidEnabled: Boolean = true,
-    val soundAidName: String = "雨声",
+    val soundAidName: String = "柔和雨声",
     val soundDurationMin: Int = 30,
     val fadeOutEnabled: Boolean = true,
     val aiCompanionEnabled: Boolean = true,
@@ -167,11 +167,15 @@ private fun SleepPreference.toDefaultPlan() = SleepPlanPreference(
     smartWakeEnd = defaultWakeTime,
     soundAidEnabled = soundAidPreference.isNotBlank(),
     soundAidName = when {
-        "雨声" in soundAidPreference -> "雨声"
-        "白噪音" in soundAidPreference -> "白噪音"
-        "海浪" in soundAidPreference -> "海浪"
-        "森林" in soundAidPreference -> "森林"
-        else -> "雨声"
+        "柔和雨声" in soundAidPreference || "雨声" in soundAidPreference -> "柔和雨声"
+        "绵长雨声" in soundAidPreference -> "绵长雨声"
+        "海浪" in soundAidPreference || "舒缓海浪" in soundAidPreference -> "舒缓海浪"
+        "河流" in soundAidPreference || "自然河流" in soundAidPreference -> "自然河流"
+        "森林" in soundAidPreference || "夜间森林" in soundAidPreference -> "夜间森林"
+        "白噪声" in soundAidPreference || "白噪音" in soundAidPreference -> "白噪声"
+        "粉红噪声" in soundAidPreference -> "粉红噪声"
+        "棕色噪声" in soundAidPreference -> "棕色噪声"
+        else -> "柔和雨声"
     },
     aiCompanionEnabled = aiCompanionEnabled
 )
@@ -289,12 +293,22 @@ private fun ElectricalInterventionState.toTdcsConfig(): TdcsConfig {
     )
 }
 
-enum class SoundType(val label: String) {
-    RAIN("雨声"),
-    WAVES("海浪"),
-    PINK_NOISE("粉红噪声"),
-    ALPHA_SOUND("个性化Alpha"),
-    AI_RELAX("AI引导放松")
+enum class SoundType(val label: String, val category: SoundCategory) {
+    // 自然声音
+    RAIN_GENTLE("柔和雨声", SoundCategory.NATURE),
+    RAIN_LONG("绵长雨声", SoundCategory.NATURE),
+    OCEAN_WAVES("舒缓海浪", SoundCategory.NATURE),
+    RIVER("自然河流", SoundCategory.NATURE),
+    NIGHT_FOREST("夜间森林", SoundCategory.NATURE),
+    // 稳定噪声
+    PINK_NOISE("粉红噪声", SoundCategory.NOISE),
+    BROWN_NOISE("棕色噪声", SoundCategory.NOISE),
+    WHITE_NOISE("白噪声", SoundCategory.NOISE),
+}
+
+enum class SoundCategory(val label: String) {
+    NATURE("自然声音"),
+    NOISE("稳定噪声")
 }
 
 enum class SoundStopMode(val label: String) {
@@ -305,12 +319,19 @@ enum class SoundStopMode(val label: String) {
 
 data class SoundInterventionState(
     val enabled: Boolean = true,
-    val soundType: SoundType = SoundType.RAIN,
-    val volume: Float = 0.35f,
+    val soundType: SoundType = SoundType.RAIN_GENTLE,
+    val volume: Float = 0.12f,
     val durationMinutes: Int = 30,
     val stopMode: SoundStopMode = SoundStopMode.SLEEP_DETECTED,
     val fadeIn: Boolean = true,
     val fadeOut: Boolean = true,
+    // Alpha干预
+    val alphaEnabled: Boolean = false,
+    val alphaPulseGain: Float = 0.04f,
+    val alphaMaxDurationMin: Int = 30,
+    // 深睡干预
+    val deepSleepEnabled: Boolean = false,
+    val deepSleepPulseGain: Float = 0.04f,
     val runState: InterventionRunState = InterventionRunState.DISABLED
 )
 
@@ -723,12 +744,22 @@ private fun SleepSetupScreen(
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         // Sound row
+                        val soundSummary = buildString {
+                            if (soundState.enabled) {
+                                append("${soundState.soundType.label}")
+                                append(" · ${if (soundState.stopMode == SoundStopMode.FIXED_TIME) "${soundState.durationMinutes}分钟" else soundState.stopMode.label}")
+                                val extras = mutableListOf<String>()
+                                if (soundState.alphaEnabled) extras.add("α")
+                                if (soundState.deepSleepEnabled) extras.add("N3")
+                                if (extras.isNotEmpty()) append(" · ${extras.joinToString("+")}")
+                            } else {
+                                append("未开启")
+                            }
+                        }
                         InterventionRow(
                             icon = Icons.Default.MusicNote,
                             title = "入睡声音",
-                            summary = if (soundState.enabled) {
-                                "${soundState.soundType.label} · ${if (soundState.stopMode == SoundStopMode.FIXED_TIME) "${soundState.durationMinutes}分钟" else soundState.stopMode.label}"
-                            } else "未开启",
+                            summary = soundSummary,
                             enabled = soundState.enabled,
                             onClick = { showSoundSheet = true }
                         )
@@ -1507,8 +1538,16 @@ private fun SoundInterventionSheet(
     var durationMin by rememberSaveable { mutableStateOf(state.durationMinutes) }
     var stopMode by rememberSaveable { mutableStateOf(state.stopMode) }
     var fadeOut by rememberSaveable { mutableStateOf(state.fadeOut) }
+    var alphaEnabled by rememberSaveable { mutableStateOf(state.alphaEnabled) }
+    var alphaGain by rememberSaveable { mutableStateOf(state.alphaPulseGain) }
+    var alphaMaxMin by rememberSaveable { mutableStateOf(state.alphaMaxDurationMin) }
+    var deepSleepEnabled by rememberSaveable { mutableStateOf(state.deepSleepEnabled) }
+    var deepSleepGain by rememberSaveable { mutableStateOf(state.deepSleepPulseGain) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val natureTypes = SoundType.entries.filter { it.category == SoundCategory.NATURE }
+    val noiseTypes = SoundType.entries.filter { it.category == SoundCategory.NOISE }
+    val durations = listOf(20, 30, 45, 60)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1516,46 +1555,70 @@ private fun SoundInterventionSheet(
         containerColor = Color(0xFF151B30),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 30.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            SheetHeader("入睡声音", onDismiss)
+            item {
+                SheetHeader("声音助眠设置", onDismiss)
+            }
 
-            // Sound type
-            GroupLabel("声音类型")
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                SoundType.entries.forEach { st ->
-                    val selected = soundType == st
-                    Surface(
-                        onClick = { soundType = st },
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
-                        border = if (selected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null
-                    ) {
-                        Text(
-                            st.label,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+            // ── 自然声音 ──
+            item {
+                GroupLabel("自然声音")
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        natureTypes.take(3).forEach { st ->
+                            SoundChip(
+                                label = st.label,
+                                selected = soundType == st,
+                                onClick = { soundType = st },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        natureTypes.drop(3).forEach { st ->
+                            SoundChip(
+                                label = st.label,
+                                selected = soundType == st,
+                                onClick = { soundType = st },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── 稳定噪声 ──
+            item {
+                GroupLabel("稳定噪声")
+            }
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    noiseTypes.forEach { st ->
+                        SoundChip(
+                            label = st.label,
+                            selected = soundType == st,
+                            onClick = { soundType = st },
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
             }
 
-            // Volume
-            GroupLabel("音量 · ${(volume * 100).toInt()}%")
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            ) {
+            // ── 音量 ──
+            item {
+                GroupLabel("背景音量 · ${(volume * 100).toInt()}%")
                 androidx.compose.material3.Slider(
                     value = volume,
                     onValueChange = { volume = (it * 100).roundToInt() / 100f },
-                    valueRange = 0.05f..1f,
+                    valueRange = 0.01f..0.50f,
                     modifier = Modifier.fillMaxWidth(),
                     colors = androidx.compose.material3.SliderDefaults.colors(
                         thumbColor = Color(0xFF6C8CFF),
@@ -1565,91 +1628,241 @@ private fun SoundInterventionSheet(
                 )
             }
 
-            // Duration
-            GroupLabel("播放时长")
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(15, 30, 45, 60).forEach { mins ->
-                    val selected = durationMin == mins
+            // ── 播放时长 ──
+            item {
+                GroupLabel("播放时间")
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    durations.forEach { mins ->
+                        val selected = durationMin == mins
+                        Surface(
+                            onClick = { durationMin = mins },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
+                            border = if (selected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                "${mins}分钟",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── 停止方式 ──
+            item {
+                GroupLabel("停止方式")
+                SoundStopMode.entries.forEach { sm ->
+                    val selected = stopMode == sm
                     Surface(
-                        onClick = { durationMin = mins },
+                        onClick = { stopMode = sm },
                         shape = RoundedCornerShape(10.dp),
-                        color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
-                        border = if (selected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null
+                        color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.12f) else Color.Transparent,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            "${mins}分钟",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                sm.label,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.50f)
+                            )
+                        }
                     }
                 }
+                ToggleRow("入睡后渐弱", fadeOut) { fadeOut = it }
             }
 
-            // Stop mode
-            GroupLabel("停止方式")
-            SoundStopMode.entries.forEach { sm ->
-                val selected = stopMode == sm
-                Surface(
-                    onClick = { stopMode = sm },
-                    shape = RoundedCornerShape(10.dp),
-                    color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.12f) else Color.Transparent,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            sm.label,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.50f)
+            // ── 分割线 ──
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color.White.copy(alpha = 0.08f))
+                )
+            }
+
+            // ── 阿尔法入睡干预（实验功能）──
+            item {
+                Text(
+                    "阿尔法入睡干预（实验功能）",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White.copy(alpha = 0.80f)
+                )
+                Text(
+                    "根据实时脑电状态，在入睡阶段叠加轻微短声音。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.40f)
+                )
+            }
+            item {
+                ToggleRow("启用阿尔法干预", alphaEnabled) { alphaEnabled = it }
+            }
+            if (alphaEnabled) {
+                item {
+                    GroupLabel("干预强度 · ${(alphaGain * 100).toInt()}%")
+                    androidx.compose.material3.Slider(
+                        value = alphaGain,
+                        onValueChange = { alphaGain = (it * 100).roundToInt() / 100f },
+                        valueRange = 0.01f..0.15f,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.SliderDefaults.colors(
+                            thumbColor = Color(0xFF8AB4F8),
+                            activeTrackColor = Color(0xFF8AB4F8),
+                            inactiveTrackColor = Color.White.copy(alpha = 0.10f)
                         )
-                    }
-                }
-            }
-
-            // Fade out
-            ToggleRow("渐弱停止", fadeOut) { fadeOut = it }
-
-            // Save / Close
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Surface(
-                    onClick = onDismiss,
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color.White.copy(alpha = 0.08f),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        "取消",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White.copy(alpha = 0.50f),
-                        modifier = Modifier.padding(vertical = 10.dp).fillMaxWidth(),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
-                Button(
-                    onClick = {
-                        onSave(state.copy(
-                            enabled = true,
-                            soundType = soundType,
-                            volume = volume,
-                            durationMinutes = durationMin,
-                            stopMode = stopMode,
-                            fadeOut = fadeOut
-                        ))
-                    },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C8CFF), contentColor = Color.White),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("保存", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                item {
+                    GroupLabel("最长干预时间: ${alphaMaxMin}分钟")
+                    androidx.compose.material3.Slider(
+                        value = alphaMaxMin.toFloat(),
+                        onValueChange = { alphaMaxMin = it.toInt() },
+                        valueRange = 10f..60f,
+                        steps = 9,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.SliderDefaults.colors(
+                            thumbColor = Color(0xFF8AB4F8),
+                            activeTrackColor = Color(0xFF8AB4F8),
+                            inactiveTrackColor = Color.White.copy(alpha = 0.10f)
+                        )
+                    )
+                }
+            }
+
+            // ── 分割线 ──
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color.White.copy(alpha = 0.08f))
+                )
+            }
+
+            // ── 深睡声音 ──
+            item {
+                Text(
+                    "深睡声音",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White.copy(alpha = 0.80f)
+                )
+                Text(
+                    "检测到稳定深睡后，播放轻微短声音。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.40f)
+                )
+            }
+            item {
+                ToggleRow("启用深睡声音", deepSleepEnabled) { deepSleepEnabled = it }
+            }
+            if (deepSleepEnabled) {
+                item {
+                    GroupLabel("声音强度 · ${(deepSleepGain * 100).toInt()}%")
+                    androidx.compose.material3.Slider(
+                        value = deepSleepGain,
+                        onValueChange = { deepSleepGain = (it * 100).roundToInt() / 100f },
+                        valueRange = 0.01f..0.20f,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.SliderDefaults.colors(
+                            thumbColor = Color(0xFF7B8CDE),
+                            activeTrackColor = Color(0xFF7B8CDE),
+                            inactiveTrackColor = Color.White.copy(alpha = 0.10f)
+                        )
+                    )
+                }
+                item {
+                    Surface(
+                        onClick = { },
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF7B8CDE).copy(alpha = 0.12f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "试听一次短声音",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF7B8CDE),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+            }
+
+            // ── Save ──
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Surface(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color.White.copy(alpha = 0.08f),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "取消",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White.copy(alpha = 0.50f),
+                            modifier = Modifier.padding(vertical = 10.dp).fillMaxWidth(),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            onSave(state.copy(
+                                enabled = true,
+                                soundType = soundType,
+                                volume = volume,
+                                durationMinutes = durationMin,
+                                stopMode = stopMode,
+                                fadeOut = fadeOut,
+                                alphaEnabled = alphaEnabled,
+                                alphaPulseGain = alphaGain,
+                                alphaMaxDurationMin = alphaMaxMin,
+                                deepSleepEnabled = deepSleepEnabled,
+                                deepSleepPulseGain = deepSleepGain
+                            ))
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C8CFF), contentColor = Color.White),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("保存", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SoundChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
+        border = if (selected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null,
+        modifier = modifier
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            softWrap = false
+        )
     }
 }
 
@@ -1665,6 +1878,7 @@ private fun SmartWakeSheet(
     var enabled by rememberSaveable { mutableStateOf(plan.smartWakeEnabled) }
     var startTime by rememberSaveable { mutableStateOf(plan.smartWakeStart) }
     var endTime by rememberSaveable { mutableStateOf(plan.smartWakeEnd) }
+    var vibrationEnabled by rememberSaveable { mutableStateOf(true) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -1706,7 +1920,7 @@ private fun SmartWakeSheet(
 
                 GroupLabel("唤醒窗口")
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(15, 30, 45, 60).forEach { mins ->
+                    listOf(10, 20, 30, 45).forEach { mins ->
                         val selected = startTime == adjustTime(endTime, -mins)
                         Surface(
                             onClick = {
@@ -1731,6 +1945,26 @@ private fun SmartWakeSheet(
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.30f)
                 )
+
+                GroupLabel("唤醒声音")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("柔和唤醒声", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.50f))
+                    Text("晨间鸟鸣", style = MaterialTheme.typography.bodySmall, color = Color(0xFF6C8CFF))
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("兜底铃声", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.50f))
+                    Text("柔和铃音", style = MaterialTheme.typography.bodySmall, color = Color(0xFF6C8CFF))
+                }
+
+                ToggleRow("同步震动", vibrationEnabled) { vibrationEnabled = it }
             }
 
             // Save

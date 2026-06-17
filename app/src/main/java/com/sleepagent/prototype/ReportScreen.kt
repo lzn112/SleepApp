@@ -67,6 +67,7 @@ import com.sleepagent.prototype.data.SleepNightlySummaryRecord
 import com.sleepagent.prototype.data.SleepSessionRecord
 import com.sleepagent.prototype.data.SleepStage
 import com.sleepagent.prototype.data.SleepStorageRepository
+import com.sleepagent.prototype.report.SleepStageChartCard
 import com.sleepagent.prototype.ui.theme.SleepAgentPrototypeTheme
 import org.json.JSONObject
 import java.time.Instant
@@ -100,6 +101,8 @@ private data class ReportUiModel(
     val awakeMs: Long,
     val awakePercent: Int,
     val totalDurationMs: Long,
+    val totalSleepMs: Long = 0L,
+    val sleepEfficiency: Float = 0f,
     val wakeAfterSleepOnsetMs: Long,
     val avgSignalQuality: Float?,
     val dataQualityScore: Float?,
@@ -269,10 +272,13 @@ fun ReportScreenContent(
                     item { CoreMetricsGrid(uiModel = uiModel) }
                     item { SleepHealthAnalysisCard(uiModel = uiModel) }
                     item {
-                        SleepStageOverviewCard(
+                        val efficiencyPercent = (uiModel.sleepEfficiency * 100f).roundToInt()
+                        SleepStageChartCard(
                             epochs = uiModel.epochs,
                             sessionStartMs = sessionStartMs,
-                            sessionEndMs = sessionEndMs
+                            sessionEndMs = sessionEndMs,
+                            totalSleepMs = uiModel.totalSleepMs,
+                            efficiencyPercent = efficiencyPercent
                         )
                     }
                     item { DataQualityCard(uiModel = uiModel) }
@@ -281,10 +287,13 @@ fun ReportScreenContent(
 
                 ReportTab.Stage -> {
                     item {
-                        SleepStageTimelineCard(
+                        val efficiencyPercent = (uiModel.sleepEfficiency * 100f).roundToInt()
+                        SleepStageChartCard(
                             epochs = uiModel.epochs,
                             sessionStartMs = sessionStartMs,
-                            sessionEndMs = sessionEndMs
+                            sessionEndMs = sessionEndMs,
+                            totalSleepMs = uiModel.totalSleepMs,
+                            efficiencyPercent = efficiencyPercent
                         )
                     }
                     item { SleepArchitectureCard(uiModel = uiModel) }
@@ -1712,6 +1721,8 @@ private suspend fun buildReportUiModel(
         awakeMs = awakeMs,
         awakePercent = awakePercent,
         totalDurationMs = totalDurationMs,
+        totalSleepMs = totalSleepMs,
+        sleepEfficiency = efficiency,
         wakeAfterSleepOnsetMs = wakeAfterSleepOnsetMs,
         avgSignalQuality = avgSignalQuality,
         dataQualityScore = dataQualityScore,
@@ -1748,6 +1759,8 @@ private fun mockReportUiModel(): ReportUiModel {
         awakePercent = 0,
         totalDurationMs = 28200000L,
         wakeAfterSleepOnsetMs = 2520000L,
+        totalSleepMs = 25920000L, // 7h12m
+        sleepEfficiency = 0.86f,
         avgSignalQuality = 0.91f,
         dataQualityScore = 0.88f,
         bedDurationMs = 28200000L

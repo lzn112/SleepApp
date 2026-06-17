@@ -218,3 +218,120 @@ class ActiveSleepSession internal constructor(
     internal val csvHandle: SleepSessionCsvWriter.SessionHandle,
     internal var packetCount: Long = 0L
 )
+
+// ── Sound Intervention Database Entities ──
+
+data class SoundInterventionConfigEntity(
+    val id: Long = 0L,
+    // Background
+    val sleepBackgroundEnabled: Boolean = true,
+    val sleepBackgroundSoundKey: String = "RAIN_GENTLE",
+    val sleepBackgroundGain: Float = 0.12f,
+    val sleepBackgroundDurationMinutes: Int = 30,
+    val keepBackgroundAllNight: Boolean = false,
+    val fadeAfterSleepOnset: Boolean = true,
+    val backgroundFadeDurationSeconds: Int = 60,
+    // Alpha
+    val alphaInterventionEnabled: Boolean = false,
+    val alphaMode: String = "ALPHA_AWARE",
+    val alphaTargetPhaseDeg: Float = 0f,
+    val alphaPhaseToleranceDeg: Float = 30f,
+    val alphaPulseGain: Float = 0.04f,
+    val alphaMaxDurationMinutes: Int = 30,
+    val alphaMinimumSignalQuality: Float = 0.70f,
+    // Deep sleep
+    val deepSleepEnabled: Boolean = false,
+    val deepSleepPulseGain: Float = 0.04f,
+    val deepSleepStableSeconds: Int = 120,
+    val deepSleepMaxPulsesPerGroup: Int = 8,
+    val deepSleepObserveSeconds: Int = 45,
+    val deepSleepMaxGroups: Int = 10,
+    // Smart wake
+    val smartWakeEnabled: Boolean = true,
+    val latestWakeMinutesFromMidnight: Int = 7 * 60 + 30,
+    val wakeWindowMinutes: Int = 30,
+    val allowRemWake: Boolean = false,
+    val wakeSoundKey: String = "MORNING_BIRDS",
+    val fallbackAlarmSoundKey: String = "SOFT_PLUCKS_ALARM",
+    val vibrationEnabled: Boolean = false,
+    val wakeInitialGain: Float = 0.03f,
+    val wakeMaxGain: Float = 0.50f,
+    val wakeRampDurationSeconds: Int = 180,
+    val updatedAtEpochMs: Long = System.currentTimeMillis()
+)
+
+data class AlphaCalibrationEntity(
+    val id: Long = 0L,
+    val sessionId: String? = null,
+    val deviceId: String? = null,
+    val createdAtEpochMs: Long = System.currentTimeMillis(),
+    val individualAlphaFrequencyHz: Float? = null,
+    val peakPower: Float? = null,
+    val peakProminence: Float? = null,
+    val signalQuality: Float = 0f,
+    val success: Boolean = false,
+    val failureReason: String? = null,
+    val algorithmVersion: String = "1.0"
+)
+
+data class SoundInterventionEventEntity(
+    val id: Long = 0L,
+    val sessionId: String,
+    val timestampMillis: Long,
+    val elapsedRealtimeNanos: Long,
+    val interventionType: String,
+    val eventType: String,
+    val interventionState: String? = null,
+    val sleepStage: String? = null,
+    val stageProbability: Float? = null,
+    val eegQuality: Float? = null,
+    val motionLevel: Float? = null,
+    val heartRate: Float? = null,
+    val backgroundSoundKey: String? = null,
+    val audioGain: Float? = null,
+    val alphaMode: String? = null,
+    val individualAlphaFrequencyHz: Float? = null,
+    val targetPhaseDeg: Float? = null,
+    val estimatedPhaseDeg: Float? = null,
+    val predictedPlaybackPhaseDeg: Float? = null,
+    val phaseErrorDeg: Float? = null,
+    val alphaAmplitude: Float? = null,
+    val groupIndex: Int? = null,
+    val pulseIndex: Int? = null,
+    val success: Boolean? = null,
+    val reason: String? = null,
+    val metadataJson: String? = null
+)
+
+object SoundInterventionEventTypes {
+    const val SESSION_STARTED = "SESSION_STARTED"
+    const val BACKGROUND_STARTED = "BACKGROUND_STARTED"
+    const val BACKGROUND_SWITCHED = "BACKGROUND_SWITCHED"
+    const val BACKGROUND_FADE_STARTED = "BACKGROUND_FADE_STARTED"
+    const val BACKGROUND_STOPPED = "BACKGROUND_STOPPED"
+    const val ALPHA_CALIBRATION_STARTED = "ALPHA_CALIBRATION_STARTED"
+    const val ALPHA_CALIBRATION_SUCCEEDED = "ALPHA_CALIBRATION_SUCCEEDED"
+    const val ALPHA_CALIBRATION_FAILED = "ALPHA_CALIBRATION_FAILED"
+    const val ALPHA_INTERVENTION_STARTED = "ALPHA_INTERVENTION_STARTED"
+    const val ALPHA_PULSE_TRIGGERED = "ALPHA_PULSE_TRIGGERED"
+    const val ALPHA_PULSE_SKIPPED = "ALPHA_PULSE_SKIPPED"
+    const val ALPHA_INTERVENTION_STOPPED = "ALPHA_INTERVENTION_STOPPED"
+    const val N3_GROUP_STARTED = "N3_GROUP_STARTED"
+    const val N3_PULSE_TRIGGERED = "N3_PULSE_TRIGGERED"
+    const val N3_PULSE_SKIPPED = "N3_PULSE_SKIPPED"
+    const val N3_GROUP_FINISHED = "N3_GROUP_FINISHED"
+    const val N3_INTERVENTION_STOPPED = "N3_INTERVENTION_STOPPED"
+    const val SMART_WAKE_WINDOW_STARTED = "SMART_WAKE_WINDOW_STARTED"
+    const val SMART_WAKE_TRIGGERED = "SMART_WAKE_TRIGGERED"
+    const val WAKE_SOUND_STARTED = "WAKE_SOUND_STARTED"
+    const val VIBRATION_STARTED = "VIBRATION_STARTED"
+    const val FALLBACK_ALARM_SCHEDULED = "FALLBACK_ALARM_SCHEDULED"
+    const val FALLBACK_ALARM_TRIGGERED = "FALLBACK_ALARM_TRIGGERED"
+    const val USER_CONFIRMED_AWAKE = "USER_CONFIRMED_AWAKE"
+    const val STOPPED_STAGE_CHANGE = "STOPPED_STAGE_CHANGE"
+    const val STOPPED_BAD_SIGNAL = "STOPPED_BAD_SIGNAL"
+    const val STOPPED_MOTION = "STOPPED_MOTION"
+    const val STOPPED_DEVICE_DISCONNECTED = "STOPPED_DEVICE_DISCONNECTED"
+    const val PULSE_PLAY_FAILED = "PULSE_PLAY_FAILED"
+    const val SESSION_STOPPED = "SESSION_STOPPED"
+}

@@ -245,6 +245,16 @@ class SleepStorageRepository(
         }
     }
 
+    suspend fun insertInterventionEvent(event: SoundInterventionEventEntity) {
+        withContext(ioDispatcher) {
+            databaseHelper.writableDatabase.insert(
+                SleepStorageDatabaseHelper.TABLE_SOUND_INTERVENTION_EVENT,
+                null,
+                event.toContentValues()
+            )
+        }
+    }
+
     suspend fun upsertAiReport(
         report: SleepAiReportRecord,
         evidenceLinks: List<AiEvidenceLinkRecord> = emptyList()
@@ -530,6 +540,36 @@ class SleepStorageRepository(
             put(SleepStorageDatabaseHelper.COLUMN_PAYLOAD_JSON, payloadJson)
             put(SleepStorageDatabaseHelper.COLUMN_CREATED_AT_EPOCH_MS, createdAtEpochMs)
             put(SleepStorageDatabaseHelper.COLUMN_UPDATED_AT_EPOCH_MS, updatedAtEpochMs)
+        }
+    }
+
+    private fun SoundInterventionEventEntity.toContentValues(): ContentValues {
+        return ContentValues().apply {
+            put("session_id", sessionId)
+            put("timestamp_millis", timestampMillis)
+            put("elapsed_realtime_nanos", elapsedRealtimeNanos)
+            put("intervention_type", interventionType)
+            put("event_type", eventType)
+            put("intervention_state", interventionState)
+            put("sleep_stage", sleepStage)
+            put("stage_probability", stageProbability)
+            put("eeg_quality", eegQuality)
+            put("motion_level", motionLevel)
+            put("heart_rate", heartRate)
+            put("background_sound_key", backgroundSoundKey)
+            put("audio_gain", audioGain)
+            put("alpha_mode", alphaMode)
+            put("individual_alpha_frequency_hz", individualAlphaFrequencyHz)
+            put("target_phase_deg", targetPhaseDeg)
+            put("estimated_phase_deg", estimatedPhaseDeg)
+            put("predicted_playback_phase_deg", predictedPlaybackPhaseDeg)
+            put("phase_error_deg", phaseErrorDeg)
+            put("alpha_amplitude", alphaAmplitude)
+            put("group_index", groupIndex)
+            put("pulse_index", pulseIndex)
+            put("success", if (success == true) 1 else if (success == false) 0 else null)
+            put("reason", reason)
+            put("metadata_json", metadataJson)
         }
     }
 

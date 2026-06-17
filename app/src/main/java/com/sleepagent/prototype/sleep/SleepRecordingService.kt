@@ -38,6 +38,8 @@ import com.sleepagent.prototype.sleep.staging.SleepStageInferenceEngine
 import com.sleepagent.prototype.sleep.staging.SleepStagePipeline
 import com.sleepagent.prototype.sleep.staging.SleepStagePrediction
 import com.sleepagent.prototype.sleep.staging.SleepStageSnapshot
+import com.sleepagent.prototype.intervention.controller.SoundInterventionController
+import com.sleepagent.prototype.intervention.model.RealtimeSleepSnapshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -51,6 +53,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import android.os.SystemClock
 
 data class SleepRecordingState(
     val connectionState: DeviceConnectionState = DeviceConnectionState.DISCONNECTED,
@@ -95,6 +98,18 @@ class SleepRecordingService : Service() {
     private var sleepStagePipeline = SleepStagePipeline(inferenceEngine = sleepStageInferenceEngine)
     private var lastPersistedStageEpochIndex: Int = -1
 
+    private val soundInterventionController by lazy {
+        SoundInterventionController(applicationContext).also { controller ->
+            controller.eventLogger = { event ->
+                serviceScope.launch(Dispatchers.IO) {
+                    runCatching {
+                        repository.insertInterventionEvent(event)
+                    }
+                }
+            }
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -108,6 +123,7 @@ class SleepRecordingService : Service() {
         serviceScope.launch {
             runCatching { finishActiveSession(SleepSessionStatus.ABORTED) }
             runCatching { manager?.disconnect() }
+            runCatching { soundInterventionController.release() }
             releaseWakeLock()
             serviceScope.cancel()
         }
@@ -159,6 +175,8 @@ class SleepRecordingService : Service() {
                 it.copy(isRecording = true, message = "已进入睡眠监测页。")
             }
             updateForegroundNotification()
+            // Start sound intervention controller
+            soundInterventionController.start(sessionId = session.sessionId)
         } catch (error: Throwable) {
             val failedSession = activeSession
             activeSession = null
@@ -312,9 +330,44 @@ class SleepRecordingService : Service() {
         )
         if (downsampledEegSample != null) {
             sleepStagePipeline.ingest(downsampledEegSample)
+            // Feed alpha phase estimator
+            soundInterventionController.ingestEegSample(downsampledEegSample.valueMicrovolts)
         }
         val stageSnapshot = sleepStagePipeline.snapshot()
         persistStageResultIfNeeded(stageSnapshot.latestResult)
+
+        // Feed intervention controller with real-time snapshot
+        val dataStage = when (stageSnapshot.currentStage) {
+            com.sleepagent.prototype.sleep.staging.SleepStage.Wake ->
+                com.sleepagent.prototype.data.SleepStage.AWAKE
+            com.sleepagent.prototype.sleep.staging.SleepStage.Light ->
+                com.sleepagent.prototype.data.SleepStage.LIGHT
+            com.sleepagent.prototype.sleep.staging.SleepStage.N3 ->
+                com.sleepagent.prototype.data.SleepStage.DEEP
+            com.sleepagent.prototype.sleep.staging.SleepStage.REM ->
+                com.sleepagent.prototype.data.SleepStage.REM
+            com.sleepagent.prototype.sleep.staging.SleepStage.Unknown ->
+                com.sleepagent.prototype.data.SleepStage.UNKNOWN
+        }
+        val interventionSnapshot = RealtimeSleepSnapshot(
+            timestampMillis = System.currentTimeMillis(),
+            elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
+            sleepStage = dataStage,
+            stageProbabilities = stageSnapshot.latestResult?.probabilities?.associate {
+                mapStagingStage(it.stage) to it.probability
+            } ?: emptyMap(),
+            eegQuality = snapshot.eeg.signalQuality ?: 0f,
+            motionLevel = null,
+            heartRate = snapshot.hrv.heartRateBpm?.toFloat(),
+            isDeviceConnected = _recordingState.value.connectionState == DeviceConnectionState.CONNECTED
+        )
+        if (_recordingState.value.isRecording) {
+            runCatching {
+                soundInterventionController.onSnapshot(interventionSnapshot)
+            }.onFailure { error ->
+                Log.e("SleepRecordingService", "Intervention controller failed on snapshot", error)
+            }
+        }
 
         val nextPacketCount = sessionIoMutex.withLock {
             val session = activeSession
@@ -336,6 +389,14 @@ class SleepRecordingService : Service() {
         }
     }
 
+    private fun mapStagingStage(stage: com.sleepagent.prototype.sleep.staging.SleepStage): com.sleepagent.prototype.data.SleepStage = when (stage) {
+        com.sleepagent.prototype.sleep.staging.SleepStage.Wake -> com.sleepagent.prototype.data.SleepStage.AWAKE
+        com.sleepagent.prototype.sleep.staging.SleepStage.Light -> com.sleepagent.prototype.data.SleepStage.LIGHT
+        com.sleepagent.prototype.sleep.staging.SleepStage.N3 -> com.sleepagent.prototype.data.SleepStage.DEEP
+        com.sleepagent.prototype.sleep.staging.SleepStage.REM -> com.sleepagent.prototype.data.SleepStage.REM
+        com.sleepagent.prototype.sleep.staging.SleepStage.Unknown -> com.sleepagent.prototype.data.SleepStage.UNKNOWN
+    }
+
     private fun logRaw51Check(packet: HeadbandRawPacket) {
         val counts = packet.eegCounts
         if (counts.size < 8) return
@@ -352,6 +413,8 @@ class SleepRecordingService : Service() {
     }
 
     private suspend fun finishActiveSession(status: SleepSessionStatus): String? {
+        // Stop sound intervention
+        runCatching { soundInterventionController.stop() }
         val finishedSession = sessionIoMutex.withLock {
             val session = activeSession ?: return@withLock null
             activeSession = null

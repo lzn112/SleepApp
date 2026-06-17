@@ -32,6 +32,11 @@ class SleepStorageDatabaseHelper(
         db.execSQL(CREATE_SLEEP_AI_REPORT_SESSION_INDEX)
         db.execSQL(CREATE_AI_EVIDENCE_LINK_TABLE)
         db.execSQL(CREATE_AI_EVIDENCE_LINK_REPORT_INDEX)
+        // Sound intervention tables (v4)
+        db.execSQL(CREATE_SOUND_INTERVENTION_CONFIG_TABLE)
+        db.execSQL(CREATE_ALPHA_CALIBRATION_TABLE)
+        db.execSQL(CREATE_SOUND_INTERVENTION_EVENT_TABLE)
+        db.execSQL(CREATE_SOUND_INTERVENTION_EVENT_SESSION_INDEX)
     }
 
     override fun onOpen(db: SQLiteDatabase) {
@@ -55,6 +60,11 @@ class SleepStorageDatabaseHelper(
             currentVersion = 3
         }
 
+        if (currentVersion < 4) {
+            migrateToVersion4(db)
+            currentVersion = 4
+        }
+
         if (currentVersion != newVersion) {
             rebuildAllTables(db)
         }
@@ -62,10 +72,13 @@ class SleepStorageDatabaseHelper(
 
     companion object {
         private const val DATABASE_NAME = "sleep_storage.db"
-        private const val DATABASE_VERSION = 3
+        private const val DATABASE_VERSION = 4
 
         const val TABLE_SLEEP_SESSION = "sleep_session"
         const val TABLE_SLEEP_EPOCH = "sleep_epoch"
+        const val TABLE_SOUND_INTERVENTION_CONFIG = "sound_intervention_config"
+        const val TABLE_ALPHA_CALIBRATION = "alpha_calibration"
+        const val TABLE_SOUND_INTERVENTION_EVENT = "sound_intervention_event"
 
         const val COLUMN_SESSION_ID = "session_id"
         const val COLUMN_SOURCE_TYPE = "source_type"
@@ -370,6 +383,100 @@ class SleepStorageDatabaseHelper(
             CREATE INDEX IF NOT EXISTS idx_ai_evidence_link_report
             ON ai_evidence_link ($COLUMN_REPORT_ID, $COLUMN_EVIDENCE_TYPE)
             """.trimIndent()
+
+        // v4: Sound intervention tables
+        private val CREATE_SOUND_INTERVENTION_CONFIG_TABLE =
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_SOUND_INTERVENTION_CONFIG (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sleep_background_enabled INTEGER NOT NULL DEFAULT 1,
+                sleep_background_sound_key TEXT NOT NULL DEFAULT 'RAIN_GENTLE',
+                sleep_background_gain REAL NOT NULL DEFAULT 0.12,
+                sleep_background_duration_minutes INTEGER NOT NULL DEFAULT 30,
+                keep_background_all_night INTEGER NOT NULL DEFAULT 0,
+                fade_after_sleep_onset INTEGER NOT NULL DEFAULT 1,
+                background_fade_duration_seconds INTEGER NOT NULL DEFAULT 60,
+                alpha_intervention_enabled INTEGER NOT NULL DEFAULT 0,
+                alpha_mode TEXT NOT NULL DEFAULT 'ALPHA_AWARE',
+                alpha_target_phase_deg REAL NOT NULL DEFAULT 0.0,
+                alpha_phase_tolerance_deg REAL NOT NULL DEFAULT 30.0,
+                alpha_pulse_gain REAL NOT NULL DEFAULT 0.04,
+                alpha_max_duration_minutes INTEGER NOT NULL DEFAULT 30,
+                alpha_minimum_signal_quality REAL NOT NULL DEFAULT 0.70,
+                deep_sleep_enabled INTEGER NOT NULL DEFAULT 0,
+                deep_sleep_pulse_gain REAL NOT NULL DEFAULT 0.04,
+                deep_sleep_stable_seconds INTEGER NOT NULL DEFAULT 120,
+                deep_sleep_max_pulses_per_group INTEGER NOT NULL DEFAULT 8,
+                deep_sleep_observe_seconds INTEGER NOT NULL DEFAULT 45,
+                deep_sleep_max_groups INTEGER NOT NULL DEFAULT 10,
+                smart_wake_enabled INTEGER NOT NULL DEFAULT 1,
+                latest_wake_minutes_from_midnight INTEGER NOT NULL DEFAULT 450,
+                wake_window_minutes INTEGER NOT NULL DEFAULT 30,
+                allow_rem_wake INTEGER NOT NULL DEFAULT 0,
+                wake_sound_key TEXT NOT NULL DEFAULT 'MORNING_BIRDS',
+                fallback_alarm_sound_key TEXT NOT NULL DEFAULT 'SOFT_PLUCKS_ALARM',
+                vibration_enabled INTEGER NOT NULL DEFAULT 0,
+                wake_initial_gain REAL NOT NULL DEFAULT 0.03,
+                wake_max_gain REAL NOT NULL DEFAULT 0.50,
+                wake_ramp_duration_seconds INTEGER NOT NULL DEFAULT 180,
+                updated_at_epoch_ms INTEGER NOT NULL
+            )
+            """.trimIndent()
+
+        private val CREATE_ALPHA_CALIBRATION_TABLE =
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_ALPHA_CALIBRATION (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT,
+                device_id TEXT,
+                created_at_epoch_ms INTEGER NOT NULL,
+                individual_alpha_frequency_hz REAL,
+                peak_power REAL,
+                peak_prominence REAL,
+                signal_quality REAL NOT NULL DEFAULT 0,
+                success INTEGER NOT NULL DEFAULT 0,
+                failure_reason TEXT,
+                algorithm_version TEXT NOT NULL DEFAULT '1.0'
+            )
+            """.trimIndent()
+
+        private val CREATE_SOUND_INTERVENTION_EVENT_TABLE =
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_SOUND_INTERVENTION_EVENT (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                timestamp_millis INTEGER NOT NULL,
+                elapsed_realtime_nanos INTEGER NOT NULL,
+                intervention_type TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                intervention_state TEXT,
+                sleep_stage TEXT,
+                stage_probability REAL,
+                eeg_quality REAL,
+                motion_level REAL,
+                heart_rate REAL,
+                background_sound_key TEXT,
+                audio_gain REAL,
+                alpha_mode TEXT,
+                individual_alpha_frequency_hz REAL,
+                target_phase_deg REAL,
+                estimated_phase_deg REAL,
+                predicted_playback_phase_deg REAL,
+                phase_error_deg REAL,
+                alpha_amplitude REAL,
+                group_index INTEGER,
+                pulse_index INTEGER,
+                success INTEGER,
+                reason TEXT,
+                metadata_json TEXT
+            )
+            """.trimIndent()
+
+        private val CREATE_SOUND_INTERVENTION_EVENT_SESSION_INDEX =
+            """
+            CREATE INDEX IF NOT EXISTS idx_sound_intervention_event_session
+            ON $TABLE_SOUND_INTERVENTION_EVENT (session_id, timestamp_millis)
+            """.trimIndent()
     }
 
     private fun migrateToVersion2(db: SQLiteDatabase) {
@@ -418,6 +525,19 @@ class SleepStorageDatabaseHelper(
         db.beginTransaction()
         try {
             ensureSchemaCompatibility(db)
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    private fun migrateToVersion4(db: SQLiteDatabase) {
+        db.beginTransaction()
+        try {
+            db.execSQL(CREATE_SOUND_INTERVENTION_CONFIG_TABLE)
+            db.execSQL(CREATE_ALPHA_CALIBRATION_TABLE)
+            db.execSQL(CREATE_SOUND_INTERVENTION_EVENT_TABLE)
+            db.execSQL(CREATE_SOUND_INTERVENTION_EVENT_SESSION_INDEX)
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
