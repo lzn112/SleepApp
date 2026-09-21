@@ -91,6 +91,7 @@ import com.sleepagent.prototype.device.TdcsConfig
 import com.sleepagent.prototype.device.TdcsState
 import com.sleepagent.prototype.device.tdcsConstantWaveHex
 import com.sleepagent.prototype.device.tdcsPositiveHalfSineHex
+import com.sleepagent.prototype.intervention.audio.PulsePlaybackResult
 import com.sleepagent.prototype.sleep.processing.SleepSignalSnapshot
 import com.sleepagent.prototype.sleep.staging.SleepStageSnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -126,6 +127,15 @@ private data class SleepPlanUiState(
     val aiCompanionDurationMin: Int = 5,
     val sleepGuardEnabled: Boolean = true
 )
+
+private fun String.toMinutesFromMidnightOrNull(): Int? {
+    val parts = split(":")
+    if (parts.size != 2) return null
+    val hour = parts[0].toIntOrNull() ?: return null
+    val minute = parts[1].toIntOrNull() ?: return null
+    if (hour !in 0..23 || minute !in 0..59) return null
+    return hour * 60 + minute
+}
 
 private fun SleepPlanPreference.toUiState() = SleepPlanUiState(
     bedtime = bedtime,
@@ -326,11 +336,11 @@ data class SoundInterventionState(
     val fadeIn: Boolean = true,
     val fadeOut: Boolean = true,
     // Alpha干预
-    val alphaEnabled: Boolean = false,
+    val alphaEnabled: Boolean = true,
     val alphaPulseGain: Float = 0.04f,
     val alphaMaxDurationMin: Int = 30,
     // 深睡干预
-    val deepSleepEnabled: Boolean = false,
+    val deepSleepEnabled: Boolean = true,
     val deepSleepPulseGain: Float = 0.04f,
     val runState: InterventionRunState = InterventionRunState.DISABLED
 )
@@ -357,6 +367,33 @@ fun SleepScreen() {
     }
     var electricalState by remember { mutableStateOf(ElectricalInterventionState()) }
     var soundState by remember { mutableStateOf(SoundInterventionState()) }
+
+    fun syncInterventionConfig(service: SleepRecordingService?) {
+        service?.interventionController?.applySoundConfig(
+            backgroundEnabled = soundState.enabled,
+            soundKeyName = soundState.soundType.name,
+            gain = soundState.volume,
+            durationMin = soundState.durationMinutes,
+            keepAllNight = soundState.stopMode == SoundStopMode.ALL_NIGHT,
+            fadeAfterSleepOnset = soundState.stopMode == SoundStopMode.SLEEP_DETECTED && soundState.fadeOut,
+            fadeDurationSeconds = if (soundState.fadeOut) 60 else 1,
+            alphaEnabled = soundState.alphaEnabled,
+            alphaGain = soundState.alphaPulseGain,
+            alphaMaxMin = soundState.alphaMaxDurationMin,
+            deepSleepEnabled = soundState.deepSleepEnabled,
+            deepSleepGain = soundState.deepSleepPulseGain
+        )
+
+        val smartWakeStart = sleepPlan.smartWakeStart.toMinutesFromMidnightOrNull()
+        val smartWakeEnd = sleepPlan.smartWakeEnd.toMinutesFromMidnightOrNull()
+        if (smartWakeStart != null && smartWakeEnd != null) {
+            service?.interventionController?.applySmartWakeConfig(
+                enabled = sleepPlan.smartWakeEnabled,
+                windowStartMinutesFromMidnight = smartWakeStart,
+                windowEndMinutesFromMidnight = smartWakeEnd
+            )
+        }
+    }
 
     DisposableEffect(appContext) {
         val connection = object : ServiceConnection {
@@ -412,6 +449,7 @@ fun SleepScreen() {
                 onElectricalStateChange = { electricalState = it },
                 soundState = soundState,
                 onSoundStateChange = { soundState = it },
+                recordingService = recordingService,
                 useMockManager = useMockManager,
                 onUseMockManagerChange = { useMockManager = it },
                 connectionState = connectionState,
@@ -506,6 +544,7 @@ fun SleepScreen() {
                                 onError = { uiMessage = it }
                             ) {
                                 SleepRecordingService.requestForegroundStart(appContext)
+                                syncInterventionConfig(service)
                                 service.startRecording(useMockManager, connectedDevice)
                                 electricalState = if (electricalState.enabled) {
                                     runCatching {
@@ -594,6 +633,7 @@ fun SleepScreen() {
                 onElectricalStateChange = { electricalState = it },
                 soundState = soundState,
                 onSoundStateChange = { soundState = it },
+                recordingService = recordingService,
                 connectionState = connectionState,
                 deviceStatus = uiDeviceStatus,
                 uiMessage = displayMessage,
@@ -679,6 +719,7 @@ private fun SleepSetupScreen(
     onElectricalStateChange: (ElectricalInterventionState) -> Unit,
     soundState: SoundInterventionState,
     onSoundStateChange: (SoundInterventionState) -> Unit,
+    recordingService: SleepRecordingService?,
     useMockManager: Boolean,
     onUseMockManagerChange: (Boolean) -> Unit,
     connectionState: DeviceConnectionState,
@@ -750,7 +791,7 @@ private fun SleepSetupScreen(
                                 append(" · ${if (soundState.stopMode == SoundStopMode.FIXED_TIME) "${soundState.durationMinutes}分钟" else soundState.stopMode.label}")
                                 val extras = mutableListOf<String>()
                                 if (soundState.alphaEnabled) extras.add("α")
-                                if (soundState.deepSleepEnabled) extras.add("N3")
+                                if (soundState.deepSleepEnabled) extras.add("Beta/N3")
                                 if (extras.isNotEmpty()) append(" · ${extras.joinToString("+")}")
                             } else {
                                 append("未开启")
@@ -859,9 +900,27 @@ private fun SleepSetupScreen(
         SoundInterventionSheet(
             state = soundState,
             onDismiss = { showSoundSheet = false },
+            onPreviewPulse = { gain ->
+                recordingService?.interventionController?.previewPulse(gain)
+                    ?: PulsePlaybackResult.Error("Recording service not connected")
+            },
             onSave = {
                 onSoundStateChange(it)
                 showSoundSheet = false
+                recordingService?.interventionController?.applySoundConfig(
+                    backgroundEnabled = it.enabled,
+                    soundKeyName = it.soundType.name,
+                    gain = it.volume,
+                    durationMin = it.durationMinutes,
+                    keepAllNight = it.stopMode == SoundStopMode.ALL_NIGHT,
+                    fadeAfterSleepOnset = it.stopMode == SoundStopMode.SLEEP_DETECTED && it.fadeOut,
+                    fadeDurationSeconds = if (it.fadeOut) 60 else 1,
+                    alphaEnabled = it.alphaEnabled,
+                    alphaGain = it.alphaPulseGain,
+                    alphaMaxMin = it.alphaMaxDurationMin,
+                    deepSleepEnabled = it.deepSleepEnabled,
+                    deepSleepGain = it.deepSleepPulseGain
+                )
             }
         )
     }
@@ -874,6 +933,15 @@ private fun SleepSetupScreen(
             onSave = {
                 onPlanChange(it)
                 showSmartWakeSheet = false
+                val smartWakeStart = it.smartWakeStart.toMinutesFromMidnightOrNull()
+                val smartWakeEnd = it.smartWakeEnd.toMinutesFromMidnightOrNull()
+                if (smartWakeStart != null && smartWakeEnd != null) {
+                    recordingService?.interventionController?.applySmartWakeConfig(
+                        enabled = it.smartWakeEnabled,
+                        windowStartMinutesFromMidnight = smartWakeStart,
+                        windowEndMinutesFromMidnight = smartWakeEnd
+                    )
+                }
             }
         )
     }
@@ -947,6 +1015,7 @@ private fun SleepMonitorScreen(
     onElectricalStateChange: (ElectricalInterventionState) -> Unit,
     soundState: SoundInterventionState,
     onSoundStateChange: (SoundInterventionState) -> Unit,
+    recordingService: SleepRecordingService?,
     connectionState: DeviceConnectionState,
     deviceStatus: SleepDeviceUiStatus,
     uiMessage: String?,
@@ -1095,9 +1164,27 @@ private fun SleepMonitorScreen(
         SoundInterventionSheet(
             state = soundState,
             onDismiss = { showSoundSheet = false },
+            onPreviewPulse = { gain ->
+                recordingService?.interventionController?.previewPulse(gain)
+                    ?: PulsePlaybackResult.Error("Recording service not connected")
+            },
             onSave = {
                 onSoundStateChange(it)
                 showSoundSheet = false
+                recordingService?.interventionController?.applySoundConfig(
+                    backgroundEnabled = it.enabled,
+                    soundKeyName = it.soundType.name,
+                    gain = it.volume,
+                    durationMin = it.durationMinutes,
+                    keepAllNight = it.stopMode == SoundStopMode.ALL_NIGHT,
+                    fadeAfterSleepOnset = it.stopMode == SoundStopMode.SLEEP_DETECTED && it.fadeOut,
+                    fadeDurationSeconds = if (it.fadeOut) 60 else 1,
+                    alphaEnabled = it.alphaEnabled,
+                    alphaGain = it.alphaPulseGain,
+                    alphaMaxMin = it.alphaMaxDurationMin,
+                    deepSleepEnabled = it.deepSleepEnabled,
+                    deepSleepGain = it.deepSleepPulseGain
+                )
             }
         )
     }
@@ -1109,6 +1196,15 @@ private fun SleepMonitorScreen(
             onSave = {
                 onPlanChange(it)
                 showSmartWakeSheet = false
+                val smartWakeStart = it.smartWakeStart.toMinutesFromMidnightOrNull()
+                val smartWakeEnd = it.smartWakeEnd.toMinutesFromMidnightOrNull()
+                if (smartWakeStart != null && smartWakeEnd != null) {
+                    recordingService?.interventionController?.applySmartWakeConfig(
+                        enabled = it.smartWakeEnabled,
+                        windowStartMinutesFromMidnight = smartWakeStart,
+                        windowEndMinutesFromMidnight = smartWakeEnd
+                    )
+                }
             }
         )
     }
@@ -1531,6 +1627,7 @@ private fun ElectricalStimulationSheet(
 private fun SoundInterventionSheet(
     state: SoundInterventionState,
     onDismiss: () -> Unit,
+    onPreviewPulse: (Float) -> PulsePlaybackResult,
     onSave: (SoundInterventionState) -> Unit
 ) {
     var soundType by rememberSaveable { mutableStateOf(state.soundType) }
@@ -1543,6 +1640,7 @@ private fun SoundInterventionSheet(
     var alphaMaxMin by rememberSaveable { mutableStateOf(state.alphaMaxDurationMin) }
     var deepSleepEnabled by rememberSaveable { mutableStateOf(state.deepSleepEnabled) }
     var deepSleepGain by rememberSaveable { mutableStateOf(state.deepSleepPulseGain) }
+    var previewMessage by rememberSaveable { mutableStateOf<String?>(null) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val natureTypes = SoundType.entries.filter { it.category == SoundCategory.NATURE }
@@ -1738,6 +1836,15 @@ private fun SoundInterventionSheet(
                         )
                     )
                 }
+                item {
+                    PreviewPulseButton(
+                        label = "试听 Alpha 短声音",
+                        color = Color(0xFF8AB4F8),
+                        gain = alphaGain,
+                        onPreviewPulse = onPreviewPulse,
+                        onMessage = { previewMessage = it }
+                    )
+                }
             }
 
             // ── 分割线 ──
@@ -1784,7 +1891,14 @@ private fun SoundInterventionSheet(
                 }
                 item {
                     Surface(
-                        onClick = { },
+                        onClick = {
+                            previewMessage = when (val result = onPreviewPulse(deepSleepGain)) {
+                                is PulsePlaybackResult.Playing -> "已试听 Beta/N3 短声音"
+                                is PulsePlaybackResult.Scheduled -> "已安排 Beta/N3 试听"
+                                is PulsePlaybackResult.Skipped -> "Beta/N3 试听跳过：${result.reason}"
+                                is PulsePlaybackResult.Error -> "Beta/N3 试听失败：${result.message}"
+                            }
+                        },
                         shape = RoundedCornerShape(10.dp),
                         color = Color(0xFF7B8CDE).copy(alpha = 0.12f),
                         modifier = Modifier.fillMaxWidth()
@@ -1800,6 +1914,16 @@ private fun SoundInterventionSheet(
             }
 
             // ── Save ──
+            previewMessage?.let { message ->
+                item {
+                    Text(
+                        message,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.52f)
+                    )
+                }
+            }
+
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Surface(
@@ -1842,6 +1966,37 @@ private fun SoundInterventionSheet(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PreviewPulseButton(
+    label: String,
+    color: Color,
+    gain: Float,
+    onPreviewPulse: (Float) -> PulsePlaybackResult,
+    onMessage: (String) -> Unit
+) {
+    Surface(
+        onClick = {
+            val message = when (val result = onPreviewPulse(gain)) {
+                is PulsePlaybackResult.Playing -> "已试听：$label"
+                is PulsePlaybackResult.Scheduled -> "已安排试听：$label"
+                is PulsePlaybackResult.Skipped -> "试听跳过：${result.reason}"
+                is PulsePlaybackResult.Error -> "试听失败：${result.message}"
+            }
+            onMessage(message)
+        },
+        shape = RoundedCornerShape(10.dp),
+        color = color.copy(alpha = 0.12f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+        )
     }
 }
 

@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -473,21 +474,21 @@ fun SleepStageCanvasChart(
     val topPaddingPx = with(density) { 8.dp.toPx() }
     val bottomPaddingPx = with(density) { 24.dp.toPx() }
 
-    // Chart content calculation
-    val chartContentWidth = ((durationMs.toFloat() / 1000f) / 40f).coerceAtLeast(1f)
-        .times(densityDpToPx) * scale
-
     val minScale = 1f
-    val maxScale = (durationMs.toFloat() / (15 * 60 * 1000f)).coerceAtMost(30f)
-    val clampedOffsetX = when {
-        chartContentWidth <= 0f -> 0f
-        else -> offsetX.coerceIn(-chartContentWidth * 0.1f, chartContentWidth * 0.1f)
-    }
+    val maxScale = (durationMs.toFloat() / (15 * 60 * 1000f)).coerceIn(1f, 30f)
 
     val yPositions = remember { mutableListOf<Float>() }
     val segmentRects = remember { mutableListOf<SegmentRect>() }
 
-    Box(modifier = modifier.clipToBounds()) {
+    BoxWithConstraints(modifier = modifier.clipToBounds()) {
+        val canvasWidthPx = with(density) { maxWidth.toPx() }
+        val visibleChartWidth = (canvasWidthPx - leftPaddingPx - rightPaddingPx).coerceAtLeast(1f)
+        val naturalContentWidth = ((durationMs.toFloat() / 1000f) / 40f).coerceAtLeast(1f)
+            .times(densityDpToPx)
+        val chartContentWidth = naturalContentWidth.coerceAtLeast(visibleChartWidth) * scale
+        val maxPanLeft = (chartContentWidth - visibleChartWidth).coerceAtLeast(0f)
+        val clampedOffsetX = offsetX.coerceIn(-maxPanLeft, 0f)
+
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
@@ -509,12 +510,15 @@ fun SleepStageCanvasChart(
                             val tapTimeMs = sessionStartMs + ((offset.x - leftPaddingPx - clampedOffsetX) / chartContentWidth * durationMs).toLong()
                             val segment = segments.find { tapTimeMs in it.startTimeMillis..it.endTimeMillis }
                             if (segment != null) {
+                                val renderStage = renderStageForSegment(segment, displayMode, sessionStartMs, durationMs)
                                 tooltipInfo = SegmentTooltip(
                                     segment = segment,
-                                    stageLabel = segment.stage.name,
+                                    stageLabel = renderStage?.let(::labelForRenderStage) ?: labelForSleepStage(segment.stage),
                                     startTime = formatHhmm(segment.startTimeMillis),
                                     endTime = formatHhmm(segment.endTimeMillis),
-                                    duration = formatDurationShort(segment.endTimeMillis - segment.startTimeMillis)
+                                    duration = formatDurationShort(segment.endTimeMillis - segment.startTimeMillis),
+                                    anchorX = offset.x,
+                                    anchorY = offset.y
                                 )
                             }
                         }
@@ -524,25 +528,16 @@ fun SleepStageCanvasChart(
                     detectTransformGestures { _, pan, zoom, _ ->
                         val newScale = (scale * zoom).coerceIn(minScale, maxScale)
                         scale = newScale
-                        // Recalculate content width for clamping
-                        val newChartW = ((durationMs.toFloat() / 1000f) / 40f)
-                            .coerceAtLeast(1f)
-                            .times(densityDpToPx) * newScale
-                        offsetX = (clampedOffsetX + pan.x).coerceIn(
-                            -newChartW * 0.1f, newChartW * 0.1f
-                        )
+                        val newContentWidth = naturalContentWidth.coerceAtLeast(visibleChartWidth) * newScale
+                        val newMaxPanLeft = (newContentWidth - visibleChartWidth).coerceAtLeast(0f)
+                        offsetX = (clampedOffsetX + pan.x).coerceIn(-newMaxPanLeft, 0f)
                     }
                 }
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = { tooltipInfo = null; isLongPressActive = false }
                     ) { _, dragAmount ->
-                        val newChartW = ((durationMs.toFloat() / 1000f) / 40f)
-                            .coerceAtLeast(1f)
-                            .times(densityDpToPx) * scale
-                        offsetX = (clampedOffsetX + dragAmount).coerceIn(
-                            -newChartW * 0.1f, newChartW * 0.1f
-                        )
+                        offsetX = (clampedOffsetX + dragAmount).coerceIn(-maxPanLeft, 0f)
                     }
                 }
         ) {
@@ -687,7 +682,12 @@ fun SleepStageCanvasChart(
         // Tooltip overlay
         tooltipInfo?.let { tip ->
             Surface(
-                modifier = Modifier.align(Alignment.TopStart),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(
+                        start = with(density) { tip.anchorX.toDp() }.coerceIn(8.dp, (maxWidth - 130.dp).coerceAtLeast(8.dp)),
+                        top = with(density) { (tip.anchorY - 64f).coerceAtLeast(8f).toDp() }
+                    ),
                 shape = RoundedCornerShape(10.dp),
                 color = Color(0xFF2A2A3E),
                 shadowElevation = 4.dp
@@ -716,8 +716,41 @@ private data class SegmentTooltip(
     val stageLabel: String,
     val startTime: String,
     val endTime: String,
-    val duration: String
+    val duration: String,
+    val anchorX: Float,
+    val anchorY: Float
 )
+
+private fun renderStageForSegment(
+    segment: SleepStageSegment,
+    displayMode: SleepStageDisplayMode,
+    sessionStartMs: Long,
+    durationMs: Long
+): ChartRenderStage? {
+    val renderStage = mapToRenderStage(segment.stage, displayMode) ?: return null
+    return if (displayMode == SleepStageDisplayMode.DETAILED && renderStage == ChartRenderStage.N2) {
+        mapLightToDetail(segment, sessionStartMs, durationMs)
+    } else {
+        renderStage
+    }
+}
+
+private fun labelForRenderStage(renderStage: ChartRenderStage): String = when (renderStage) {
+    ChartRenderStage.W -> "清醒"
+    ChartRenderStage.REM -> "REM"
+    ChartRenderStage.N1 -> "N1"
+    ChartRenderStage.N2 -> "N2"
+    ChartRenderStage.N3 -> "N3"
+    ChartRenderStage.NO_DATA -> "无数据"
+}
+
+private fun labelForSleepStage(stage: SleepStage): String = when (stage) {
+    SleepStage.AWAKE -> "清醒"
+    SleepStage.REM -> "REM"
+    SleepStage.LIGHT -> "浅睡"
+    SleepStage.DEEP -> "深睡"
+    SleepStage.UNKNOWN -> "无数据"
+}
 
 private fun stageMatchesLabel(
     stage: SleepStage,

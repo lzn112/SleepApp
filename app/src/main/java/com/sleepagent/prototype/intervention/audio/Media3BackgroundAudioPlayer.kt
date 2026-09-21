@@ -2,6 +2,7 @@ package com.sleepagent.prototype.intervention.audio
 
 import android.content.Context
 import android.net.Uri
+import android.os.Looper
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -16,6 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 
 /**
  * Media3 ExoPlayer-based background audio player for sleep sounds.
@@ -64,27 +67,31 @@ class Media3BackgroundAudioPlayer(
     }
 
     override suspend fun playLoop(resourceId: Int, gain: Float) {
-        val p = getOrCreatePlayer()
-        p.repeatMode = Player.REPEAT_MODE_ONE
-        p.volume = gain.coerceIn(0f, 1f)
-        val mediaItem = MediaItem.fromUri(rawResourceUri(resourceId))
-        p.setMediaItem(mediaItem)
-        p.prepare()
-        p.play()
-        currentResourceId = resourceId
-        _state.update { it.copy(isPlaying = true, currentGain = gain) }
+        withContext(Dispatchers.Main.immediate) {
+            val p = getOrCreatePlayer()
+            p.repeatMode = Player.REPEAT_MODE_ONE
+            p.volume = gain.coerceIn(0f, 1f)
+            val mediaItem = MediaItem.fromUri(rawResourceUri(resourceId))
+            p.setMediaItem(mediaItem)
+            p.prepare()
+            p.play()
+            currentResourceId = resourceId
+            _state.update { it.copy(isPlaying = true, currentGain = gain) }
+        }
     }
 
     override suspend fun playOnce(resourceId: Int, gain: Float) {
-        val p = getOrCreatePlayer()
-        p.repeatMode = Player.REPEAT_MODE_OFF
-        p.volume = gain.coerceIn(0f, 1f)
-        val mediaItem = MediaItem.fromUri(rawResourceUri(resourceId))
-        p.setMediaItem(mediaItem)
-        p.prepare()
-        p.play()
-        currentResourceId = resourceId
-        _state.update { it.copy(isPlaying = true, currentGain = gain) }
+        withContext(Dispatchers.Main.immediate) {
+            val p = getOrCreatePlayer()
+            p.repeatMode = Player.REPEAT_MODE_OFF
+            p.volume = gain.coerceIn(0f, 1f)
+            val mediaItem = MediaItem.fromUri(rawResourceUri(resourceId))
+            p.setMediaItem(mediaItem)
+            p.prepare()
+            p.play()
+            currentResourceId = resourceId
+            _state.update { it.copy(isPlaying = true, currentGain = gain) }
+        }
     }
 
     override suspend fun switchLoop(resourceId: Int, gain: Float, crossFadeDurationMs: Long) {
@@ -99,48 +106,73 @@ class Media3BackgroundAudioPlayer(
         }
         playLoop(resourceId, gain)
         if (crossFadeDurationMs > 0) {
-            val p = getOrCreatePlayer()
-            p.volume = 0f
+            withContext(Dispatchers.Main.immediate) {
+                getOrCreatePlayer().volume = 0f
+            }
             fadeTo(gain, crossFadeDurationMs / 2)
         }
     }
 
     override suspend fun fadeTo(targetGain: Float, durationMs: Long) {
-        val p = getOrCreatePlayer()
         if (durationMs <= 0) {
-            p.volume = targetGain.coerceIn(0f, 1f)
+            withContext(Dispatchers.Main.immediate) {
+                getOrCreatePlayer().volume = targetGain.coerceIn(0f, 1f)
+            }
             _state.update { it.copy(currentGain = targetGain) }
             return
         }
-        val startVolume = p.volume
+        val startVolume = withContext(Dispatchers.Main.immediate) {
+            getOrCreatePlayer().volume
+        }
         val steps = 20
         val stepMs = durationMs / steps
         for (i in 1..steps) {
             val fraction = i.toFloat() / steps
-            p.volume = (startVolume + (targetGain - startVolume) * fraction).coerceIn(0f, 1f)
+            val nextVolume = (startVolume + (targetGain - startVolume) * fraction).coerceIn(0f, 1f)
+            withContext(Dispatchers.Main.immediate) {
+                getOrCreatePlayer().volume = nextVolume
+            }
             delay(stepMs)
         }
-        p.volume = targetGain.coerceIn(0f, 1f)
+        withContext(Dispatchers.Main.immediate) {
+            getOrCreatePlayer().volume = targetGain.coerceIn(0f, 1f)
+        }
         _state.update { it.copy(currentGain = targetGain) }
     }
 
     override fun pause() {
-        player?.pause()
-        _state.update { it.copy(isPaused = true) }
+        runOnMainBlocking {
+            player?.pause()
+            _state.update { it.copy(isPaused = true) }
+        }
     }
 
     override fun stop() {
-        player?.stop()
-        player?.clearMediaItems()
-        currentResourceId = 0
-        _state.update { AudioPlaybackState() }
+        runOnMainBlocking {
+            player?.stop()
+            player?.clearMediaItems()
+            currentResourceId = 0
+            _state.update { AudioPlaybackState() }
+        }
     }
 
     override fun release() {
-        player?.stop()
-        player?.release()
-        player = null
-        currentResourceId = 0
-        _state.update { AudioPlaybackState() }
+        runOnMainBlocking {
+            player?.stop()
+            player?.release()
+            player = null
+            currentResourceId = 0
+            _state.update { AudioPlaybackState() }
+        }
+    }
+
+    private fun runOnMainBlocking(block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            block()
+        } else {
+            runBlocking(Dispatchers.Main.immediate) {
+                block()
+            }
+        }
     }
 }

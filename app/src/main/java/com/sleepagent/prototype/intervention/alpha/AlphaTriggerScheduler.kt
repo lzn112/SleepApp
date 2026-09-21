@@ -24,7 +24,7 @@ import android.os.SystemClock
  * - Refractory period satisfied
  */
 class AlphaTriggerScheduler(
-    private val config: AlphaInterventionConfig = AlphaInterventionConfig(),
+    private var config: AlphaInterventionConfig = AlphaInterventionConfig(),
     private val phaseEstimator: AlphaPhaseEstimator = AlphaPhaseEstimator()
 ) {
 
@@ -65,6 +65,10 @@ class AlphaTriggerScheduler(
      */
     fun ingestSample(sample: Float) {
         phaseEstimator.ingestSample(sample)
+    }
+
+    fun updateConfig(config: AlphaInterventionConfig) {
+        this.config = config
     }
 
     /**

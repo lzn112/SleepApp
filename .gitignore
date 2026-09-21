@@ -16,3 +16,4 @@ local.properties
 __pycache__/
 *.py[cod]
 analysis/results/
+/app.zip

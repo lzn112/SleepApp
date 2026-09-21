@@ -14,6 +14,8 @@ import com.sleepagent.prototype.intervention.audio.PulseAudioPlayer
 import com.sleepagent.prototype.intervention.audio.PulsePlaybackResult
 import com.sleepagent.prototype.intervention.alpha.AlphaTriggerScheduler
 import com.sleepagent.prototype.intervention.alarm.SmartAlarmScheduler
+import com.sleepagent.prototype.intervention.audio.SleepSoundKey
+import com.sleepagent.prototype.intervention.model.AlphaInterventionConfig
 import com.sleepagent.prototype.intervention.model.AlphaInterventionState
 import com.sleepagent.prototype.intervention.model.RealtimeSleepSnapshot
 import com.sleepagent.prototype.intervention.model.SoundInterventionState
@@ -30,6 +32,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
+private const val ALPHA_OPEN_LOOP_INTERVAL_MS = 2_000L
+private const val N3_OPEN_LOOP_INTERVAL_MS = 2_500L
+private const val ALPHA_OPEN_LOOP_INITIAL_DELAY_MS = 1_000L
+private const val N3_OPEN_LOOP_INITIAL_DELAY_MS = 1_750L
 
 /**
  * Central controller for all sleep sound interventions.
@@ -55,6 +62,8 @@ class SoundInterventionController(
 
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
     private var interventionJob: Job? = null
+    private var alphaOpenLoopJob: Job? = null
+    private var n3OpenLoopJob: Job? = null
     private var prepared: Boolean = false
 
     private val _state = MutableStateFlow(SoundInterventionState.IDLE)
@@ -74,8 +83,18 @@ class SoundInterventionController(
 
     // Configuration
     var backgroundEnabled: Boolean = true
-    var alphaEnabled: Boolean = false
-    var deepSleepEnabled: Boolean = false
+    var backgroundSoundResId: Int = com.sleepagent.prototype.R.raw.sleep_rain_gentle
+    var backgroundSoundKey: String = "RAIN_GENTLE"
+    var backgroundGain: Float = 0.12f
+    var backgroundDurationMinutes: Int = 30
+    var keepBackgroundAllNight: Boolean = false
+    var fadeAfterSleepOnset: Boolean = true
+    var backgroundFadeDurationMillis: Long = 60_000L
+    var alphaEnabled: Boolean = true
+    var alphaPulseGain: Float = 0.04f
+    var alphaMaxDurationMinutes: Int = 30
+    var deepSleepEnabled: Boolean = true
+    var deepSleepPulseGain: Float = 0.04f
     var smartWakeEnabled: Boolean = true
 
     var smartWakeWindowStartNanos: Long = 0L
@@ -94,6 +113,10 @@ class SoundInterventionController(
     private var n3GroupPauseStartNanos: Long = 0L
     private var inN3GroupPause: Boolean = false
     private var n3PulsesInGroup: Int = 0
+    private var backgroundStopJob: Job? = null
+    private var backgroundFadeStarted = false
+    private var alphaOpenLoopPulseCount: Int = 0
+    private var n3OpenLoopPulseCount: Int = 0
 
     /**
      * Start the intervention controller for a sleep session.
@@ -106,6 +129,7 @@ class SoundInterventionController(
         this.sessionId = sessionId
         reset()
         ensurePrepared()
+        syncAlphaSchedulerConfig()
 
         _state.value = SoundInterventionState.IDLE
         sleepStartNanos = SystemClock.elapsedRealtimeNanos()
@@ -126,6 +150,8 @@ class SoundInterventionController(
         if (smartWakeEnabled) {
             scheduleFallbackAlarm()
         }
+
+        startOpenLoopInterventionsIfNeeded()
     }
 
     /**
@@ -140,9 +166,81 @@ class SoundInterventionController(
         alarmScheduler.cancel()
         interventionJob?.cancel()
         interventionJob = null
+        stopOpenLoopInterventions(logStopped = true)
+        backgroundStopJob?.cancel()
+        backgroundStopJob = null
         backgroundPlayer.stop()
         pulsePlayer.stop()
         _state.value = SoundInterventionState.STOPPED
+    }
+
+    /**
+     * Apply sound intervention config from UI settings.
+     * Call this before or during a sleep session to update active sound parameters.
+     */
+    fun applySoundConfig(
+        backgroundEnabled: Boolean,
+        soundKeyName: String,
+        gain: Float,
+        durationMin: Int,
+        keepAllNight: Boolean,
+        fadeAfterSleepOnset: Boolean,
+        fadeDurationSeconds: Int,
+        alphaEnabled: Boolean,
+        alphaGain: Float,
+        alphaMaxMin: Int,
+        deepSleepEnabled: Boolean,
+        deepSleepGain: Float
+    ) {
+        val key = SleepSoundKey.resolve(soundKeyName)
+        this.backgroundEnabled = backgroundEnabled
+        backgroundSoundResId = key.rawResId
+        backgroundSoundKey = key.name
+        backgroundGain = gain.coerceIn(0.01f, 0.50f)
+        backgroundDurationMinutes = durationMin.coerceAtLeast(1)
+        keepBackgroundAllNight = keepAllNight
+        this.fadeAfterSleepOnset = fadeAfterSleepOnset
+        backgroundFadeDurationMillis = fadeDurationSeconds.coerceAtLeast(1) * 1_000L
+        this.alphaEnabled = alphaEnabled
+        this.alphaPulseGain = alphaGain.coerceIn(0.01f, 0.15f)
+        this.alphaMaxDurationMinutes = alphaMaxMin.coerceAtLeast(1)
+        this.deepSleepEnabled = deepSleepEnabled
+        this.deepSleepPulseGain = deepSleepGain.coerceIn(0.01f, 0.20f)
+        syncAlphaSchedulerConfig()
+        updateOpenLoopInterventions()
+
+        if (_state.value == SoundInterventionState.BACKGROUND_PLAYING) {
+            if (backgroundEnabled) {
+                startBackgroundAudio()
+            } else {
+                backgroundStopJob?.cancel()
+                backgroundStopJob = null
+                backgroundPlayer.stop()
+                _state.value = SoundInterventionState.MONITORING
+            }
+        }
+    }
+
+    fun applySmartWakeConfig(
+        enabled: Boolean,
+        windowStartMinutesFromMidnight: Int,
+        windowEndMinutesFromMidnight: Int
+    ) {
+        smartWakeEnabled = enabled
+        latestWakeMinutesFromMidnight = windowEndMinutesFromMidnight
+        val minutesPerDay = 24 * 60
+        val rawWindowMinutes = windowEndMinutesFromMidnight - windowStartMinutesFromMidnight
+        val normalizedWindowMinutes = ((rawWindowMinutes % minutesPerDay) + minutesPerDay) % minutesPerDay
+        wakeWindowMinutes = if (normalizedWindowMinutes == 0) 30 else normalizedWindowMinutes
+
+        if (sleepStartNanos > 0L) {
+            initializeSmartWakeWindow(sleepStartNanos)
+        }
+    }
+
+    fun previewPulse(gain: Float): PulsePlaybackResult {
+        ensurePrepared()
+        return pulsePlayer.playPulseNow(gain.coerceIn(0.01f, 0.20f))
     }
 
     /**
@@ -175,17 +273,19 @@ class SoundInterventionController(
             }
 
             // N3 intervention
-            deepSleepEnabled && stage == SleepStage.DEEP && stableMs >= 120_000L -> {
+            deepSleepEnabled && n3OpenLoopJob?.isActive != true &&
+                stage == SleepStage.DEEP && stableMs >= 120_000L -> {
                 evaluateN3Intervention(snapshot, stableMs)
             }
 
             // Alpha intervention (only within first 30 minutes of sleep)
-            alphaEnabled && isWithinAlphaWindow(now) &&
+            alphaEnabled && alphaOpenLoopJob?.isActive != true && isWithinAlphaWindow(now) &&
                 (stage == SleepStage.AWAKE || stage == SleepStage.LIGHT) -> {
                 evaluateAlphaIntervention(snapshot, stableMs)
             }
 
             else -> {
+                maybeFadeBackgroundAfterSleepOnset(snapshot, stableMs)
                 if (_state.value != SoundInterventionState.BACKGROUND_PLAYING) {
                     _state.value = SoundInterventionState.MONITORING
                 }
@@ -204,7 +304,181 @@ class SoundInterventionController(
 
     private fun isWithinAlphaWindow(now: Long): Boolean {
         val elapsedMs = (now - sleepStartNanos) / 1_000_000L
-        return elapsedMs < 30 * 60 * 1000L
+        return elapsedMs < alphaMaxDurationMinutes * 60 * 1000L
+    }
+
+    private fun syncAlphaSchedulerConfig() {
+        alphaScheduler.updateConfig(
+            AlphaInterventionConfig(
+                enabled = alphaEnabled,
+                pulseGain = alphaPulseGain,
+                maxDurationMinutes = alphaMaxDurationMinutes
+            )
+        )
+    }
+
+    private fun updateOpenLoopInterventions() {
+        if (!isSessionActiveForOpenLoop()) return
+
+        if (alphaEnabled) {
+            startAlphaOpenLoopIfNeeded()
+        } else {
+            stopAlphaOpenLoop(logStopped = true)
+        }
+
+        if (deepSleepEnabled) {
+            startN3OpenLoopIfNeeded()
+        } else {
+            stopN3OpenLoop(logStopped = true)
+        }
+    }
+
+    private fun startOpenLoopInterventionsIfNeeded() {
+        if (alphaEnabled) startAlphaOpenLoopIfNeeded()
+        if (deepSleepEnabled) startN3OpenLoopIfNeeded()
+    }
+
+    private fun isSessionActiveForOpenLoop(): Boolean {
+        val currentState = _state.value
+        return sleepStartNanos > 0L &&
+            currentState != SoundInterventionState.STOPPED &&
+            currentState != SoundInterventionState.FALLBACK_ALARMING
+    }
+
+    private fun startAlphaOpenLoopIfNeeded() {
+        if (alphaOpenLoopJob?.isActive == true) return
+        alphaOpenLoopPulseCount = 0
+        logEvent(
+            type = SoundInterventionType.ALPHA,
+            eventType = SoundInterventionEventTypes.ALPHA_INTERVENTION_STARTED,
+            success = true,
+            reason = "open_loop"
+        )
+        alphaOpenLoopJob = scope.launch {
+            delay(ALPHA_OPEN_LOOP_INITIAL_DELAY_MS)
+            while (isActive && alphaEnabled && isSessionActiveForOpenLoop() && isWithinAlphaWindow(SystemClock.elapsedRealtimeNanos())) {
+                playOpenLoopPulse(
+                    type = SoundInterventionType.ALPHA,
+                    triggeredEventType = SoundInterventionEventTypes.ALPHA_PULSE_TRIGGERED,
+                    skippedEventType = SoundInterventionEventTypes.ALPHA_PULSE_SKIPPED,
+                    gain = alphaPulseGain,
+                    pulseIndex = ++alphaOpenLoopPulseCount
+                )
+                delay(ALPHA_OPEN_LOOP_INTERVAL_MS)
+            }
+            if (!isActive) return@launch
+            stopAlphaOpenLoop(logStopped = true)
+        }
+    }
+
+    private fun startN3OpenLoopIfNeeded() {
+        if (n3OpenLoopJob?.isActive == true) return
+        n3OpenLoopPulseCount = 0
+        logEvent(
+            type = SoundInterventionType.DEEP_SLEEP,
+            eventType = SoundInterventionEventTypes.N3_OPEN_LOOP_STARTED,
+            success = true,
+            reason = "beta_deep_sleep_lock_open_loop"
+        )
+        n3OpenLoopJob = scope.launch {
+            delay(N3_OPEN_LOOP_INITIAL_DELAY_MS)
+            while (isActive && deepSleepEnabled && isSessionActiveForOpenLoop()) {
+                playOpenLoopPulse(
+                    type = SoundInterventionType.DEEP_SLEEP,
+                    triggeredEventType = SoundInterventionEventTypes.N3_PULSE_TRIGGERED,
+                    skippedEventType = SoundInterventionEventTypes.N3_PULSE_SKIPPED,
+                    gain = deepSleepPulseGain,
+                    pulseIndex = ++n3OpenLoopPulseCount
+                )
+                delay(N3_OPEN_LOOP_INTERVAL_MS)
+            }
+            if (!isActive) return@launch
+            stopN3OpenLoop(logStopped = true)
+        }
+    }
+
+    private fun playOpenLoopPulse(
+        type: SoundInterventionType,
+        triggeredEventType: String,
+        skippedEventType: String,
+        gain: Float,
+        pulseIndex: Int
+    ) {
+        if (pulsePlayer.isActive) {
+            logEvent(
+                type = type,
+                eventType = skippedEventType,
+                pulseIndex = pulseIndex,
+                reason = "Pulse already active",
+                success = false
+            )
+            return
+        }
+
+        when (val result = pulsePlayer.playPulseNow(gain)) {
+            is PulsePlaybackResult.Playing -> {
+                logEvent(
+                    type = type,
+                    eventType = triggeredEventType,
+                    audioGain = gain,
+                    pulseIndex = pulseIndex,
+                    success = true,
+                    reason = "open_loop"
+                )
+            }
+            is PulsePlaybackResult.Skipped -> {
+                logEvent(
+                    type = type,
+                    eventType = skippedEventType,
+                    pulseIndex = pulseIndex,
+                    reason = result.reason,
+                    success = false
+                )
+            }
+            is PulsePlaybackResult.Error -> {
+                logEvent(
+                    type = type,
+                    eventType = SoundInterventionEventTypes.PULSE_PLAY_FAILED,
+                    pulseIndex = pulseIndex,
+                    reason = result.message,
+                    success = false
+                )
+            }
+            is PulsePlaybackResult.Scheduled -> Unit
+        }
+    }
+
+    private fun stopOpenLoopInterventions(logStopped: Boolean) {
+        stopAlphaOpenLoop(logStopped)
+        stopN3OpenLoop(logStopped)
+    }
+
+    private fun stopAlphaOpenLoop(logStopped: Boolean) {
+        val hadJob = alphaOpenLoopJob != null
+        alphaOpenLoopJob?.cancel()
+        alphaOpenLoopJob = null
+        if (logStopped && hadJob) {
+            logEvent(
+                type = SoundInterventionType.ALPHA,
+                eventType = SoundInterventionEventTypes.ALPHA_INTERVENTION_STOPPED,
+                success = true,
+                reason = "open_loop"
+            )
+        }
+    }
+
+    private fun stopN3OpenLoop(logStopped: Boolean) {
+        val hadJob = n3OpenLoopJob != null
+        n3OpenLoopJob?.cancel()
+        n3OpenLoopJob = null
+        if (logStopped && hadJob) {
+            logEvent(
+                type = SoundInterventionType.DEEP_SLEEP,
+                eventType = SoundInterventionEventTypes.N3_OPEN_LOOP_STOPPED,
+                success = true,
+                reason = "beta_deep_sleep_lock_open_loop"
+            )
+        }
     }
 
     private fun initializeSmartWakeWindow(startNanos: Long) {
@@ -347,7 +621,7 @@ class SoundInterventionController(
         }
 
         // Trigger pulse
-        val result = pulsePlayer.playPulseNow(0.04f)
+        val result = pulsePlayer.playPulseNow(deepSleepPulseGain)
         when (result) {
             is PulsePlaybackResult.Playing -> {
                 n3PulsesInGroup++
@@ -358,7 +632,7 @@ class SoundInterventionController(
                     eventType = SoundInterventionEventTypes.N3_PULSE_TRIGGERED,
                     groupIndex = n3GroupCount,
                     pulseIndex = n3PulsesInGroup,
-                    audioGain = 0.04f,
+                    audioGain = deepSleepPulseGain,
                     success = true
                 )
             }
@@ -415,6 +689,7 @@ class SoundInterventionController(
         backgroundPlayer.stop()
         pulsePlayer.stop()
         alphaScheduler.stop("Smart wake triggered")
+        stopOpenLoopInterventions(logStopped = true)
 
         logEvent(
             type = SoundInterventionType.SMART_WAKE,
@@ -445,6 +720,7 @@ class SoundInterventionController(
         _state.value = SoundInterventionState.FALLBACK_ALARMING
         backgroundPlayer.stop()
         pulsePlayer.stop()
+        stopOpenLoopInterventions(logStopped = true)
 
         logEvent(
             type = SoundInterventionType.FALLBACK_ALARM,
@@ -461,18 +737,70 @@ class SoundInterventionController(
     }
 
     private fun startBackgroundAudio() {
+        backgroundStopJob?.cancel()
         scope.launch {
             backgroundPlayer.playLoop(
-                com.sleepagent.prototype.R.raw.sleep_rain_gentle,
-                0.12f
+                backgroundSoundResId,
+                backgroundGain
             )
             _state.value = SoundInterventionState.BACKGROUND_PLAYING
             logEvent(
                 type = SoundInterventionType.BACKGROUND,
                 eventType = SoundInterventionEventTypes.BACKGROUND_STARTED,
-                backgroundSoundKey = "RAIN_GENTLE",
-                audioGain = 0.12f,
+                backgroundSoundKey = backgroundSoundKey,
+                audioGain = backgroundGain,
                 success = true
+            )
+        }
+        if (!keepBackgroundAllNight) {
+            backgroundStopJob = scope.launch {
+                delay(backgroundDurationMinutes * 60_000L)
+                if (_state.value == SoundInterventionState.BACKGROUND_PLAYING) {
+                    if (fadeAfterSleepOnset) {
+                        backgroundPlayer.fadeTo(0f, backgroundFadeDurationMillis)
+                    }
+                    backgroundPlayer.stop()
+                    _state.value = SoundInterventionState.MONITORING
+                    logEvent(
+                        type = SoundInterventionType.BACKGROUND,
+                        eventType = SoundInterventionEventTypes.BACKGROUND_STOPPED,
+                        backgroundSoundKey = backgroundSoundKey,
+                        audioGain = 0f,
+                        success = true,
+                        reason = "duration_elapsed"
+                    )
+                }
+            }
+        }
+    }
+
+    private fun maybeFadeBackgroundAfterSleepOnset(snapshot: RealtimeSleepSnapshot, stableMs: Long) {
+        if (!backgroundEnabled || !fadeAfterSleepOnset || keepBackgroundAllNight || backgroundFadeStarted) return
+        if (_state.value != SoundInterventionState.BACKGROUND_PLAYING) return
+        if (snapshot.sleepStage != SleepStage.LIGHT && snapshot.sleepStage != SleepStage.DEEP) return
+        if (stableMs < 120_000L) return
+
+        backgroundFadeStarted = true
+        backgroundStopJob?.cancel()
+        backgroundStopJob = scope.launch {
+            logEvent(
+                type = SoundInterventionType.BACKGROUND,
+                eventType = SoundInterventionEventTypes.BACKGROUND_FADE_STARTED,
+                backgroundSoundKey = backgroundSoundKey,
+                audioGain = backgroundGain,
+                success = true,
+                reason = "sleep_onset"
+            )
+            backgroundPlayer.fadeTo(0f, backgroundFadeDurationMillis)
+            backgroundPlayer.stop()
+            _state.value = SoundInterventionState.MONITORING
+            logEvent(
+                type = SoundInterventionType.BACKGROUND,
+                eventType = SoundInterventionEventTypes.BACKGROUND_STOPPED,
+                backgroundSoundKey = backgroundSoundKey,
+                audioGain = 0f,
+                success = true,
+                reason = "sleep_onset"
             )
         }
     }
@@ -499,6 +827,7 @@ class SoundInterventionController(
     fun userConfirmedAwake() {
         backgroundPlayer.stop()
         pulsePlayer.stop()
+        stopOpenLoopInterventions(logStopped = true)
         alarmScheduler.cancel()
         logEvent(
             type = SoundInterventionType.SMART_WAKE,
@@ -514,6 +843,7 @@ class SoundInterventionController(
     fun pauseAll() {
         backgroundPlayer.pause()
         pulsePlayer.stop()
+        stopOpenLoopInterventions(logStopped = true)
     }
 
     fun release() {
@@ -538,10 +868,14 @@ class SoundInterventionController(
 
     private fun reset() {
         interventionJob?.cancel()
+        stopOpenLoopInterventions(logStopped = false)
+        backgroundStopJob?.cancel()
+        backgroundStopJob = null
         n3GroupCount = 0
         n3PulseCount = 0
         n3PulsesInGroup = 0
         inN3GroupPause = false
+        backgroundFadeStarted = false
         consecutiveLightWakeCount = 0
         previousStage = null
         stageStableStartNanos = 0L
@@ -549,6 +883,8 @@ class SoundInterventionController(
         lastN3PulseNanos = 0L
         n3GroupPauseStartNanos = 0L
         sleepStartNanos = 0L
+        alphaOpenLoopPulseCount = 0
+        n3OpenLoopPulseCount = 0
         _alphaState.update { AlphaInterventionState() }
         alphaScheduler.reset()
     }

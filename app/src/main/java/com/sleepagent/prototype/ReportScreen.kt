@@ -83,6 +83,8 @@ private data class ReportUiModel(
     val dayOfWeekText: String,
     val sleepStartText: String,
     val sleepEndText: String,
+    val sessionStartMs: Long,
+    val sessionEndMs: Long,
     val dataQualityLabel: String,
     val score: Int,
     val scoreLabel: String,
@@ -233,8 +235,8 @@ fun ReportScreenContent(
 
     var selectedTab by rememberSaveable { mutableStateOf(ReportTab.Overview) }
 
-    val sessionStartMs = uiModel.epochs.firstOrNull()?.startAtEpochMs ?: 0L
-    val sessionEndMs = uiModel.epochs.lastOrNull()?.endAtEpochMs ?: 0L
+    val sessionStartMs = uiModel.sessionStartMs
+    val sessionEndMs = uiModel.sessionEndMs
 
     Box(
         modifier = Modifier
@@ -1703,6 +1705,8 @@ private suspend fun buildReportUiModel(
         dayOfWeekText = dayOfWeekText,
         sleepStartText = sleepStartText,
         sleepEndText = sleepEndText,
+        sessionStartMs = session.startedAtEpochMs,
+        sessionEndMs = endedAtMs,
         dataQualityLabel = dataQualityLabel,
         score = score,
         scoreLabel = scoreLabel,
@@ -1734,12 +1738,15 @@ private suspend fun buildReportUiModel(
 }
 
 private fun mockReportUiModel(): ReportUiModel {
+    val epochs = mockEpochs()
     return ReportUiModel(
         sessionId = null,
         dateText = "6月12日",
         dayOfWeekText = "周五",
         sleepStartText = "23:32",
         sleepEndText = "07:08",
+        sessionStartMs = epochs.firstOrNull()?.startAtEpochMs ?: 0L,
+        sessionEndMs = epochs.lastOrNull()?.endAtEpochMs ?: 0L,
         dataQualityLabel = "数据良好",
         score = 82,
         scoreLabel = "良好",
@@ -1748,7 +1755,7 @@ private fun mockReportUiModel(): ReportUiModel {
         efficiencyText = "86%",
         onsetLatencyText = "18m",
         wakeCountText = "2次",
-        epochs = mockEpochs(),
+        epochs = epochs,
         deepSleepMs = 4860000L,
         deepPercent = 19,
         remSleepMs = 5640000L,

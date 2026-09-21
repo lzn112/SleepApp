@@ -110,6 +110,9 @@ class SleepRecordingService : Service() {
         }
     }
 
+    /** Expose controller for real-time config updates from UI. */
+    val interventionController: SoundInterventionController get() = soundInterventionController
+
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

@@ -3,6 +3,8 @@ package com.sleepagent.prototype.intervention.audio
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -23,6 +25,9 @@ class AudioTrackPulseAudioPlayer(
     private var preparedBuffer: ShortArray? = null
     private var lastPulseTimeNanos: Long = 0L
     private val minIntervalNanos: Long = 500_000_000L
+    private val preparedBufferGain: Float = 0.20f
+    private val activeResetHandler = Handler(Looper.getMainLooper())
+    private var activeResetRunnable: Runnable? = null
 
     override fun prepare() {
         if (audioTrack != null) return
@@ -65,7 +70,7 @@ class AudioTrackPulseAudioPlayer(
 
         audioTrack = track
 
-        val floatBuffer = generator.generatePulse()
+        val floatBuffer = generator.generatePulse(preparedBufferGain)
         preparedBuffer = ShortArray(floatBuffer.size) { index ->
             (floatBuffer[index] * Short.MAX_VALUE)
                 .toInt()
@@ -98,8 +103,9 @@ class AudioTrackPulseAudioPlayer(
         }
 
         val effectiveGain = gain.coerceIn(0f, 0.20f)
+        val playbackScale = effectiveGain / preparedBufferGain
         val gainBuffer = ShortArray(buffer.size) { index ->
-            (buffer[index] * effectiveGain)
+            (buffer[index] * playbackScale)
                 .toInt()
                 .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
                 .toShort()
@@ -115,11 +121,31 @@ class AudioTrackPulseAudioPlayer(
         track.play()
         lastPulseTimeNanos = SystemClock.elapsedRealtimeNanos()
         _isActive.value = true
+        scheduleActiveReset(track)
 
         return PulsePlaybackResult.Playing
     }
 
+    private fun scheduleActiveReset(track: AudioTrack) {
+        activeResetRunnable?.let(activeResetHandler::removeCallbacks)
+        activeResetRunnable = Runnable {
+            if (audioTrack === track && track.state == AudioTrack.STATE_INITIALIZED) {
+                runCatching {
+                    if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                        track.pause()
+                        track.flush()
+                    }
+                }
+            }
+            _isActive.value = false
+        }.also { runnable ->
+            activeResetHandler.postDelayed(runnable, generator.getDurationMs().toLong() + 30L)
+        }
+    }
+
     override fun stop() {
+        activeResetRunnable?.let(activeResetHandler::removeCallbacks)
+        activeResetRunnable = null
         val track = audioTrack ?: return
         if (track.state != AudioTrack.STATE_INITIALIZED) {
             _isActive.value = false
@@ -139,6 +165,8 @@ class AudioTrackPulseAudioPlayer(
     }
 
     override fun release() {
+        activeResetRunnable?.let(activeResetHandler::removeCallbacks)
+        activeResetRunnable = null
         audioTrack?.let { track ->
             runCatching {
                 if (track.state == AudioTrack.STATE_INITIALIZED) {
