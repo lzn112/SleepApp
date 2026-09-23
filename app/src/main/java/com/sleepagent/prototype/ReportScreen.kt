@@ -1,5 +1,7 @@
 package com.sleepagent.prototype
 
+import com.sleepagent.prototype.ui.theme.SleepPalette
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -244,9 +246,9 @@ fun ReportScreenContent(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF10172A),
-                        Color(0xFF0B1020),
-                        Color(0xFF070B16)
+                        SleepPalette.BackgroundTop,
+                        SleepPalette.BackgroundMiddle,
+                        SleepPalette.BackgroundBottom
                     )
                 )
             )
@@ -327,7 +329,7 @@ private fun ReportHeader(uiModel: ReportUiModel) {
             "睡眠报告",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = Color.White.copy(alpha = 0.94f)
+            color = SleepPalette.Ink
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -338,17 +340,17 @@ private fun ReportHeader(uiModel: ReportUiModel) {
                 Text(
                     "${uiModel.dateText} ${uiModel.dayOfWeekText}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.62f)
+                    color = SleepPalette.Muted
                 )
                 Text(
                     "${uiModel.sleepStartText} - ${uiModel.sleepEndText}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.44f)
+                    color = SleepPalette.Subtle
                 )
             }
             StatusBadge(
                 text = uiModel.dataQualityLabel,
-                color = if (uiModel.dataQualityLabel == "数据良好") Color(0xFF2FCBBC) else Color.White.copy(alpha = 0.40f)
+                color = if (uiModel.dataQualityLabel == "数据良好") SleepPalette.Success else SleepPalette.Subtle
             )
         }
     }
@@ -387,15 +389,15 @@ private fun ReportTabBar(
             val isSelected = tab == selectedTab
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = if (isSelected) Color.White.copy(alpha = 0.14f) else Color.Transparent,
-                border = if (isSelected) BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)) else null,
+                color = if (isSelected) SleepPalette.Border else Color.Transparent,
+                border = if (isSelected) BorderStroke(1.dp, SleepPalette.Border) else null,
                 modifier = Modifier.clickable { onTabSelected(tab) }
             ) {
                 Text(
                     tab.label,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (isSelected) Color.White.copy(alpha = 0.90f) else Color.White.copy(alpha = 0.40f),
+                    color = if (isSelected) SleepPalette.Ink else SleepPalette.Subtle,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
@@ -409,8 +411,8 @@ private fun ReportTabBar(
 private fun SleepScoreSummaryCard(uiModel: ReportUiModel) {
     Surface(
         shape = RoundedCornerShape(28.dp),
-        color = Color.White.copy(alpha = 0.08f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -427,7 +429,7 @@ private fun SleepScoreSummaryCard(uiModel: ReportUiModel) {
                     modifier = Modifier.size(100.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    val trackColor = Color.White.copy(alpha = 0.08f)
+                    val trackColor = SleepPalette.Border
                     val arcColor = scoreArcColor(uiModel.score)
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         drawArc(
@@ -450,12 +452,12 @@ private fun SleepScoreSummaryCard(uiModel: ReportUiModel) {
                             uiModel.score.toString(),
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White.copy(alpha = 0.94f)
+                            color = SleepPalette.Ink
                         )
                         Text(
                             "睡眠评分",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.40f)
+                            color = SleepPalette.Subtle
                         )
                     }
                 }
@@ -474,18 +476,18 @@ private fun SleepScoreSummaryCard(uiModel: ReportUiModel) {
                     Text(
                         uiModel.scoreDescription,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.52f)
+                        color = SleepPalette.Muted
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text(
                             "总睡眠 ${uiModel.totalSleepText}",
                             style = MaterialTheme.typography.labelMedium,
-                            color = Color.White.copy(alpha = 0.55f)
+                            color = SleepPalette.Muted
                         )
                         Text(
                             "效率 ${uiModel.efficiencyText}",
                             style = MaterialTheme.typography.labelMedium,
-                            color = Color.White.copy(alpha = 0.55f)
+                            color = SleepPalette.Muted
                         )
                     }
                 }
@@ -495,9 +497,9 @@ private fun SleepScoreSummaryCard(uiModel: ReportUiModel) {
 }
 
 private fun scoreArcColor(score: Int): Color = when {
-    score >= 85 -> Color(0xFF2FCBBC)
-    score >= 70 -> Color(0xFF6C8CFF)
-    else -> Color(0xFFFFC857)
+    score >= 85 -> SleepPalette.Success
+    score >= 70 -> SleepPalette.Primary
+    else -> SleepPalette.Warning
 }
 
 // ── 3. Core Metrics Grid ──
@@ -509,7 +511,7 @@ private fun CoreMetricsGrid(uiModel: ReportUiModel) {
             "核心指标",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -537,8 +539,8 @@ private fun CoreMetricItem(
 ) {
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = modifier
     ) {
         Column(
@@ -548,18 +550,18 @@ private fun CoreMetricItem(
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.44f)
+                color = SleepPalette.Subtle
             )
             Text(
                 value,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.94f)
+                color = SleepPalette.Ink
             )
             Text(
                 hint,
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.32f)
+                color = SleepPalette.Subtle
             )
         }
     }
@@ -575,12 +577,12 @@ private fun SleepHealthAnalysisCard(uiModel: ReportUiModel) {
             "睡眠健康分析",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         Text(
             "基于本次睡眠时长、效率和睡眠结构生成，仅供健康管理参考。",
             style = MaterialTheme.typography.bodySmall,
-            color = Color.White.copy(alpha = 0.32f)
+            color = SleepPalette.Subtle
         )
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             insights.chunked(2).forEach { row ->
@@ -606,14 +608,14 @@ private fun SleepHealthAnalysisCard(uiModel: ReportUiModel) {
 @Composable
 private fun HealthInsightItem(insight: HealthInsightUi) {
     val accentColor = when (insight.status) {
-        HealthInsightStatus.Good -> Color(0xFF2FCBBC)
-        HealthInsightStatus.Normal -> Color(0xFFFFC857)
+        HealthInsightStatus.Good -> SleepPalette.Success
+        HealthInsightStatus.Normal -> SleepPalette.Warning
         HealthInsightStatus.Attention -> Color(0xFFFF9F43)
     }
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = Color.White.copy(alpha = 0.05f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -628,7 +630,7 @@ private fun HealthInsightItem(insight: HealthInsightUi) {
                 Text(
                     insight.title,
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color.White.copy(alpha = 0.60f)
+                    color = SleepPalette.Muted
                 )
                 Surface(
                     shape = RoundedCornerShape(6.dp),
@@ -672,7 +674,7 @@ private fun SleepStage.toChartValue(): Float = when (this) {
 private val stageColors = mapOf(
     SleepStage.AWAKE to Color(0xFFFF9F43),   // 柔和橙色
     SleepStage.REM to Color(0xFFA29BFE),     // 紫蓝色
-    SleepStage.LIGHT to Color(0xFF6C8CFF),   // 蓝色
+    SleepStage.LIGHT to SleepPalette.Primary,   // 蓝色
     SleepStage.DEEP to Color(0xFF2D5BFF)     // 深蓝色
 )
 
@@ -694,12 +696,12 @@ private fun SleepStageTimelineCard(
             "完整睡眠阶段图",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White.copy(alpha = 0.06f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+            color = SleepPalette.Card,
+            border = BorderStroke(1.dp, SleepPalette.Border),
             modifier = Modifier.fillMaxWidth()
         ) {
             val validEpochs = epochs.filter { it.stage != SleepStage.UNKNOWN }
@@ -734,7 +736,7 @@ private fun SleepStageTimelineCard(
                         Text(
                             "左右拖动查看整晚睡眠阶段变化",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.24f)
+                            color = SleepPalette.Border
                         )
                     }
                 }
@@ -755,18 +757,18 @@ private fun EmptyStageState(title: String, subtitle: String) {
         Icon(
             Icons.Default.Info,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.24f),
+            tint = SleepPalette.Border,
             modifier = Modifier.size(32.dp)
         )
         Text(
             title,
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.44f)
+            color = SleepPalette.Subtle
         )
         Text(
             subtitle,
             style = MaterialTheme.typography.bodySmall,
-            color = Color.White.copy(alpha = 0.30f)
+            color = SleepPalette.Subtle
         )
     }
 }
@@ -790,7 +792,7 @@ private fun StageLegend() {
                 Text(
                     label,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.44f)
+                    color = SleepPalette.Subtle
                 )
             }
         }
@@ -854,7 +856,7 @@ private fun SleepStageHypnogramChart(
         }
     }
 
-    val lineColor = Color(0xFF6C8CFF)
+    val lineColor = SleepPalette.Primary
     val chartHeight = if (compact) 180.dp else 260.dp
     val hostModifier = if (compact) {
         Modifier.fillMaxWidth().height(chartHeight)
@@ -915,12 +917,12 @@ private fun SleepStageOverviewCard(
             "睡眠阶段概览",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White.copy(alpha = 0.06f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+            color = SleepPalette.Card,
+            border = BorderStroke(1.dp, SleepPalette.Border),
             modifier = Modifier.fillMaxWidth()
         ) {
             val validEpochs = epochs.filter { it.stage != SleepStage.UNKNOWN }
@@ -958,14 +960,14 @@ private fun MovementReportTab(uiModel: ReportUiModel) {
             "整晚体动分析",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
 
         if (movement == null) {
             EmptyStateCard(
                 title = "暂无体动数据",
                 subtitle = "本次记录未包含连续体动信号。",
-                iconTint = Color(0xFFFFC857).copy(alpha = 0.40f)
+                iconTint = SleepPalette.Warning.copy(alpha = 0.40f)
             )
             DisclaimText("体动数据可作为夜间活动水平的参考，受睡姿变化和环境干扰影响。")
             return@Column
@@ -973,8 +975,8 @@ private fun MovementReportTab(uiModel: ReportUiModel) {
 
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White.copy(alpha = 0.06f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+            color = SleepPalette.Card,
+            border = BorderStroke(1.dp, SleepPalette.Border),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -988,7 +990,7 @@ private fun MovementReportTab(uiModel: ReportUiModel) {
             }
         }
 
-        TrendChartCard(title = "体动趋势图", points = movement.points, color = Color(0xFFFFC857))
+        TrendChartCard(title = "体动趋势图", points = movement.points, color = SleepPalette.Warning)
 
         DisclaimText("体动数据可作为夜间活动水平的参考，受睡姿变化和环境干扰影响。")
     }
@@ -1004,14 +1006,14 @@ private fun SpO2ReportTab(uiModel: ReportUiModel) {
             "血氧分析",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
 
         if (spo2 == null) {
             EmptyStateCard(
                 title = "暂无血氧数据",
                 subtitle = "当前设备或本次记录未包含血氧信号。",
-                iconTint = Color(0xFFFF6B6B).copy(alpha = 0.40f)
+                iconTint = SleepPalette.Error.copy(alpha = 0.40f)
             )
             DisclaimText("本报告仅展示睡眠期间的血氧变化，不能替代医学诊断。")
             return@Column
@@ -1019,8 +1021,8 @@ private fun SpO2ReportTab(uiModel: ReportUiModel) {
 
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White.copy(alpha = 0.06f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+            color = SleepPalette.Card,
+            border = BorderStroke(1.dp, SleepPalette.Border),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -1034,7 +1036,7 @@ private fun SpO2ReportTab(uiModel: ReportUiModel) {
             }
         }
 
-        TrendChartCard(title = "血氧趋势图", points = spo2.points, color = Color(0xFFFF6B6B))
+        TrendChartCard(title = "血氧趋势图", points = spo2.points, color = SleepPalette.Error)
 
         DisclaimText("本报告仅展示睡眠期间的血氧变化，不能替代医学诊断。")
     }
@@ -1050,7 +1052,7 @@ private fun HrvReportTab(uiModel: ReportUiModel) {
             "HRV 恢复分析",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
 
         if (hrv == null) {
@@ -1065,8 +1067,8 @@ private fun HrvReportTab(uiModel: ReportUiModel) {
 
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White.copy(alpha = 0.06f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+            color = SleepPalette.Card,
+            border = BorderStroke(1.dp, SleepPalette.Border),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -1091,12 +1093,12 @@ private fun HrvReportTab(uiModel: ReportUiModel) {
 private fun EmptyStateCard(
     title: String,
     subtitle: String,
-    iconTint: Color = Color.White.copy(alpha = 0.24f)
+    iconTint: Color = SleepPalette.Border
 ) {
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -1115,12 +1117,12 @@ private fun EmptyStateCard(
                     title,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.55f)
+                    color = SleepPalette.Muted
                 )
                 Text(
                     subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.32f)
+                    color = SleepPalette.Subtle
                 )
             }
         }
@@ -1135,8 +1137,8 @@ private fun TrendChartCard(
 ) {
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -1147,14 +1149,14 @@ private fun TrendChartCard(
                 title,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.55f)
+                color = SleepPalette.Muted
             )
             if (points.size < 2) {
                 Box(modifier = Modifier.fillMaxWidth().height(140.dp), contentAlignment = Alignment.Center) {
                     Text(
                         "趋势数据不足",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.25f)
+                        color = SleepPalette.Border
                     )
                 }
             } else {
@@ -1171,7 +1173,7 @@ private fun TrendChartCard(
                     repeat(4) { index ->
                         val y = top + (bottom - top) * index / 3f
                         drawLine(
-                            color = Color.White.copy(alpha = 0.06f),
+                            color = SleepPalette.Card,
                             start = Offset(left, y),
                             end = Offset(right, y),
                             strokeWidth = 1.dp.toPx()
@@ -1211,13 +1213,13 @@ private fun PlaceholderRow(label: String, value: String) {
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.44f)
+            color = SleepPalette.Subtle
         )
         Text(
             value,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
-            color = Color.White.copy(alpha = 0.36f)
+            color = SleepPalette.Subtle
         )
     }
 }
@@ -1227,7 +1229,7 @@ private fun DisclaimText(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.bodySmall,
-        color = Color.White.copy(alpha = 0.28f),
+        color = SleepPalette.Subtle,
         modifier = Modifier.padding(horizontal = 4.dp)
     )
 }
@@ -1241,12 +1243,12 @@ private fun SleepArchitectureCard(uiModel: ReportUiModel) {
             "睡眠结构",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White.copy(alpha = 0.06f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+            color = SleepPalette.Card,
+            border = BorderStroke(1.dp, SleepPalette.Border),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -1255,8 +1257,8 @@ private fun SleepArchitectureCard(uiModel: ReportUiModel) {
             ) {
                 ArchitectureRow("深睡", formatDuration(uiModel.deepSleepMs), "${uiModel.deepPercent}%", Color(0xFF2D5BFF), uiModel.deepPercent)
                 ArchitectureRow("REM", formatDuration(uiModel.remSleepMs), "${uiModel.remPercent}%", Color(0xFFAB7DFF), uiModel.remPercent)
-                ArchitectureRow("浅睡", formatDuration(uiModel.lightSleepMs), "${uiModel.lightPercent}%", Color(0xFF6C8CFF), uiModel.lightPercent)
-                ArchitectureRow("清醒", formatDuration(uiModel.awakeMs), "${uiModel.awakePercent}%", Color(0xFFFFC857), uiModel.awakePercent)
+                ArchitectureRow("浅睡", formatDuration(uiModel.lightSleepMs), "${uiModel.lightPercent}%", SleepPalette.Primary, uiModel.lightPercent)
+                ArchitectureRow("清醒", formatDuration(uiModel.awakeMs), "${uiModel.awakePercent}%", SleepPalette.Warning, uiModel.awakePercent)
             }
         }
     }
@@ -1283,21 +1285,21 @@ private fun ArchitectureRow(
         Text(
             label,
             style = MaterialTheme.typography.bodySmall,
-            color = Color.White.copy(alpha = 0.60f),
+            color = SleepPalette.Muted,
             modifier = Modifier.width(36.dp)
         )
         Text(
             duration,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
-            color = Color.White.copy(alpha = 0.80f),
+            color = SleepPalette.Ink,
             modifier = Modifier.width(52.dp)
         )
         Text(
             percent,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Medium,
-            color = Color.White.copy(alpha = 0.50f),
+            color = SleepPalette.Muted,
             modifier = Modifier.width(36.dp)
         )
         LinearProgressIndicator(
@@ -1307,7 +1309,7 @@ private fun ArchitectureRow(
                 .height(8.dp)
                 .clip(RoundedCornerShape(4.dp)),
             color = color.copy(alpha = 0.60f),
-            trackColor = Color.White.copy(alpha = 0.06f),
+            trackColor = SleepPalette.Border,
             strokeCap = StrokeCap.Round
         )
     }
@@ -1322,12 +1324,12 @@ private fun AwakeAnalysisCard(uiModel: ReportUiModel) {
             "夜间醒来",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White.copy(alpha = 0.06f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+            color = SleepPalette.Card,
+            border = BorderStroke(1.dp, SleepPalette.Border),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -1344,26 +1346,26 @@ private fun AwakeAnalysisCard(uiModel: ReportUiModel) {
                         Text(
                             "醒来次数",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.40f)
+                            color = SleepPalette.Subtle
                         )
                         Text(
                             uiModel.wakeCountText,
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White.copy(alpha = 0.94f)
+                            color = SleepPalette.Ink
                         )
                     }
                     Column {
                         Text(
                             "总清醒时长",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.40f)
+                            color = SleepPalette.Subtle
                         )
                         Text(
                             formatDuration(uiModel.wakeAfterSleepOnsetMs),
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White.copy(alpha = 0.94f)
+                            color = SleepPalette.Ink
                         )
                     }
                     if (longestAwakeMs > 0) {
@@ -1371,13 +1373,13 @@ private fun AwakeAnalysisCard(uiModel: ReportUiModel) {
                             Text(
                                 "最长清醒",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.40f)
+                                color = SleepPalette.Subtle
                             )
                             Text(
                                 formatDuration(longestAwakeMs),
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White.copy(alpha = 0.94f)
+                                color = SleepPalette.Ink
                             )
                         }
                     }
@@ -1388,7 +1390,7 @@ private fun AwakeAnalysisCard(uiModel: ReportUiModel) {
                         "夜间有几次短暂醒来，属于常见波动。"
                     else "这一晚睡眠连续稳定，没有明显夜间醒来。",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.44f)
+                    color = SleepPalette.Subtle
                 )
             }
         }
@@ -1419,12 +1421,12 @@ private fun DataQualityCard(uiModel: ReportUiModel) {
             "数据质量",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White.copy(alpha = 0.06f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+            color = SleepPalette.Card,
+            border = BorderStroke(1.dp, SleepPalette.Border),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -1438,9 +1440,9 @@ private fun DataQualityCard(uiModel: ReportUiModel) {
                     else -> "--"
                 }
                 val sigQualityColor = when (sigQualityText) {
-                    "良好" -> Color(0xFF2FCBBC)
-                    "一般" -> Color(0xFFFFC857)
-                    else -> Color(0xFFFF6B6B)
+                    "良好" -> SleepPalette.Success
+                    "一般" -> SleepPalette.Warning
+                    else -> SleepPalette.Error
                 }
                 val dataTrustText = when {
                     (uiModel.dataQualityScore ?: 0f) >= 0.85f -> "较高"
@@ -1449,9 +1451,9 @@ private fun DataQualityCard(uiModel: ReportUiModel) {
                     else -> "--"
                 }
                 val dataTrustColor = when (dataTrustText) {
-                    "较高" -> Color(0xFF2FCBBC)
-                    "一般" -> Color(0xFFFFC857)
-                    else -> Color(0xFFFF6B6B)
+                    "较高" -> SleepPalette.Success
+                    "一般" -> SleepPalette.Warning
+                    else -> SleepPalette.Error
                 }
 
                 Row(
@@ -1459,24 +1461,24 @@ private fun DataQualityCard(uiModel: ReportUiModel) {
                     horizontalArrangement = Arrangement.spacedBy(40.dp)
                 ) {
                     Column {
-                        Text("信号质量", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.40f))
+                        Text("信号质量", style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(sigQualityText, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = sigQualityColor)
                             if (uiModel.avgSignalQuality != null) {
-                                Text("${(uiModel.avgSignalQuality * 100).roundToInt()}%", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.36f))
+                                Text("${(uiModel.avgSignalQuality * 100).roundToInt()}%", style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
                             }
                         }
                     }
                     Column {
-                        Text("有效记录", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.40f))
-                        Text(formatDuration(uiModel.totalDurationMs), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.80f))
+                        Text("有效记录", style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
+                        Text(formatDuration(uiModel.totalDurationMs), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = SleepPalette.Ink)
                     }
                     Column {
-                        Text("报告可信度", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.40f))
+                        Text("报告可信度", style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(dataTrustText, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = dataTrustColor)
                             if (uiModel.dataQualityScore != null) {
-                                Text("${(uiModel.dataQualityScore * 100).roundToInt()}%", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.36f))
+                                Text("${(uiModel.dataQualityScore * 100).roundToInt()}%", style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
                             }
                         }
                     }
@@ -1495,12 +1497,12 @@ private fun DetailedMetricsTable(uiModel: ReportUiModel) {
             "详细指标",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White.copy(alpha = 0.06f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+            color = SleepPalette.Card,
+            border = BorderStroke(1.dp, SleepPalette.Border),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -1542,13 +1544,13 @@ private fun DetailRow(label: String, value: String) {
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.56f)
+            color = SleepPalette.Muted
         )
         Text(
             value,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
-            color = Color.White.copy(alpha = 0.82f)
+            color = SleepPalette.Ink
         )
     }
 }
@@ -1559,7 +1561,7 @@ private fun DetDivider() {
         modifier = Modifier
             .fillMaxWidth()
             .height(1.dp)
-            .background(Color.White.copy(alpha = 0.04f))
+            .background(SleepPalette.Card)
     )
 }
 

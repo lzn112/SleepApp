@@ -25,7 +25,8 @@ import android.os.SystemClock
  */
 class AlphaTriggerScheduler(
     private var config: AlphaInterventionConfig = AlphaInterventionConfig(),
-    private val phaseEstimator: AlphaPhaseEstimator = AlphaPhaseEstimator()
+    private val phaseEstimator: AlphaPhaseEstimator = AlphaPhaseEstimator(),
+    private val nowNanos: () -> Long = SystemClock::elapsedRealtimeNanos
 ) {
 
     /** Current alpha intervention state */
@@ -40,7 +41,7 @@ class AlphaTriggerScheduler(
             skipCount = skipCount,
             lastSkipReason = lastSkipReason,
             elapsedSinceStartMs = if (startNanos > 0)
-                (SystemClock.elapsedRealtimeNanos() - startNanos) / 1_000_000L else 0
+                (nowNanos() - startNanos) / 1_000_000L else 0
         )
 
     var isCalibrated: Boolean = false
@@ -57,6 +58,8 @@ class AlphaTriggerScheduler(
 
     var targetPhaseDeg: Float = 0f
 
+    private var validSamples = 0
+
     private var startNanos: Long = 0L
     private var lastPulseNanos: Long = 0L
 
@@ -64,6 +67,11 @@ class AlphaTriggerScheduler(
      * Feed a new EEG sample to update phase estimation.
      */
     fun ingestSample(sample: Float) {
+        if (!sample.isFinite()) {
+            invalidateSignal()
+            return
+        }
+        validSamples++
         phaseEstimator.ingestSample(sample)
     }
 
@@ -83,7 +91,7 @@ class AlphaTriggerScheduler(
      * Start alpha intervention (called when sleep recording begins).
      */
     fun start() {
-        startNanos = SystemClock.elapsedRealtimeNanos()
+        startNanos = nowNanos()
         pulseCount = 0
         skipCount = 0
         lastSkipReason = null
@@ -137,7 +145,7 @@ class AlphaTriggerScheduler(
         }
 
         // 2. EEG quality check
-        if (snapshot.eegQuality < config.minimumSignalQuality) {
+        if (!snapshot.eegQuality.isFinite() || snapshot.eegQuality < config.minimumSignalQuality) {
             lastSkipReason = "EEG quality: ${"%.2f".format(snapshot.eegQuality)}"
             skipCount++
             return null
@@ -158,10 +166,10 @@ class AlphaTriggerScheduler(
         }
 
         // 5. Refractory period check
-        val now = SystemClock.elapsedRealtimeNanos()
+        val now = nowNanos()
         val sinceLastPulse = (now - lastPulseNanos) / 1_000_000L
         if (sinceLastPulse < config.refractoryPeriodMs && lastPulseNanos > 0) {
-            lastSkipReason = "Refractory: ${sinceLastPulse}ms"
+            lastSkipReason = "refractory"
             skipCount++
             return null
         }
@@ -169,8 +177,8 @@ class AlphaTriggerScheduler(
         // 6. Alpha amplitude check (for ALPHA_AWARE mode)
         if (config.mode == AlphaInterventionMode.ALPHA_AWARE ||
             config.mode == AlphaInterventionMode.PHASE_LOCKED) {
-            if (phaseEstimator.currentAmplitude < config.minimumAlphaAmplitude) {
-                lastSkipReason = "Alpha amplitude: ${"%.3f".format(phaseEstimator.currentAmplitude)}"
+            if (!phaseEstimator.currentAmplitude.isFinite() || phaseEstimator.currentAmplitude < config.minimumAlphaAmplitude) {
+                lastSkipReason = "alpha_amplitude_below_threshold"
                 skipCount++
                 return null
             }
@@ -184,7 +192,15 @@ class AlphaTriggerScheduler(
             return null
         }
 
-        // All checks passed
+        if (validSamples < 200) {
+            onPulseSkipped("signal_warmup")
+            return null
+        }
+        // Phase-locked output is deliberately unavailable until latency is calibrated.
+        if (config.mode == AlphaInterventionMode.PHASE_LOCKED) {
+            onPulseSkipped("phase_lock_not_validated")
+            return null
+        }
         return config.pulseGain
     }
 
@@ -193,7 +209,7 @@ class AlphaTriggerScheduler(
      */
     fun onPulseTriggered(gain: Float) {
         pulseCount++
-        lastPulseNanos = SystemClock.elapsedRealtimeNanos()
+        lastPulseNanos = nowNanos()
         lastSkipReason = null
     }
 
@@ -208,7 +224,13 @@ class AlphaTriggerScheduler(
     /**
      * Reset scheduler state for a new session.
      */
+    fun invalidateSignal() {
+        validSamples = 0
+        phaseEstimator.reset()
+    }
+
     fun reset() {
+        validSamples = 0
         pulseCount = 0
         skipCount = 0
         lastSkipReason = null

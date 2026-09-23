@@ -1,6 +1,16 @@
 package com.sleepagent.prototype
 
 import android.os.Build
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Close
+import kotlinx.coroutines.launch
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -46,13 +56,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,8 +86,13 @@ import com.sleepagent.prototype.data.SleepNightlySummaryRecord
 import com.sleepagent.prototype.data.SleepSessionRecord
 import com.sleepagent.prototype.data.SleepStorageRepository
 import com.sleepagent.prototype.data.UserPreferences
+import com.sleepagent.prototype.agent.AgentModelConfigStore
+import com.sleepagent.prototype.agent.RemoteSleepAgentModel
+import com.sleepagent.prototype.agent.SleepAgentModel
+import com.sleepagent.prototype.agent.UnconfiguredSleepAgentModel
 import com.sleepagent.prototype.sleep.SleepScreen
 import com.sleepagent.prototype.ui.theme.SleepAgentPrototypeTheme
+import com.sleepagent.prototype.ui.theme.SleepPalette
 import java.time.LocalTime
 import kotlin.math.roundToInt
 
@@ -91,22 +114,75 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun SleepAgentApp() {
+    val appContext = LocalContext.current.applicationContext
+    val modelStore = remember(appContext) { AgentModelConfigStore(appContext) }
+    var modelConfig by remember { mutableStateOf(runCatching { modelStore.load() }.getOrNull()) }
+    var modelSettingsVisible by remember { mutableStateOf(false) }
+    val agentModel = remember(modelConfig) {
+        modelConfig?.let { RemoteSleepAgentModel(it) } ?: UnconfiguredSleepAgentModel()
+    }
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Home) }
     var historyScreenVisible by remember { mutableStateOf(false) }
     var reportSessionId by rememberSaveable { mutableStateOf<String?>(null) }
     var aiChatVisible by remember { mutableStateOf(false) }
     var aiChatInitialPrompt by remember { mutableStateOf<String?>(null) }
 
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    BackHandler(enabled = !drawerState.isOpen && (selectedTab != MainTab.Home || historyScreenVisible || reportSessionId != null || aiChatVisible)) {
+        when {
+            aiChatVisible -> { aiChatVisible = false; aiChatInitialPrompt = null }
+            reportSessionId != null -> reportSessionId = null
+            historyScreenVisible -> historyScreenVisible = false
+            else -> selectedTab = MainTab.Home
+        }
+    }
+    BackHandler(enabled = drawerState.isOpen) { scope.launch { drawerState.close() } }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = drawerState.isOpen,
+        scrimColor = SleepPalette.Ink.copy(alpha = .3f),
+        drawerContent = {
+            ModalDrawerSheet(modifier = Modifier.fillMaxWidth(.84f), drawerContainerColor = SleepPalette.Soft,
+                drawerShape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("眠伴", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        IconButton(onClick = { scope.launch { drawerState.close() } }) { Icon(Icons.Default.Close, "关闭侧边栏") }
+                    }
+                    Text("陪你走向每一个好眠夜晚", color = SleepPalette.Muted, modifier = Modifier.padding(bottom = 20.dp))
+                    MainTab.entries.forEach { tab ->
+                        NavigationDrawerItem(
+                            label = { Text(tab.label) }, icon = { Icon(tab.icon, null) },
+                            selected = selectedTab == tab && !historyScreenVisible && reportSessionId == null && !aiChatVisible,
+                            onClick = { scope.launch {
+                                drawerState.close()
+                                historyScreenVisible = false
+                                reportSessionId = null
+                                aiChatVisible = false
+                                aiChatInitialPrompt = null
+                                selectedTab = tab
+                            } },
+                            colors = NavigationDrawerItemDefaults.colors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
+                        )
+                    }
+                    NavigationDrawerItem(label = { Text("模型设置") }, selected = false, onClick = { scope.launch {
+                        drawerState.close(); modelSettingsVisible = true
+                    } })
+                }
+            }
+        }
+    ) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = {
-            if (!historyScreenVisible && reportSessionId == null) {
-                SleepBottomNavigation(
-                    selectedTab = selectedTab,
-                    onTabSelected = { selectedTab = it }
-                )
+        topBar = {
+            if (selectedTab != MainTab.Home || historyScreenVisible || reportSessionId != null || aiChatVisible) {
+                Row(Modifier.fillMaxWidth().background(SleepPalette.BackgroundTop).statusBarsPadding().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { scope.launch { drawerState.open() } }) { Icon(Icons.Default.Menu, "打开侧边栏") }
+                    Text(if (aiChatVisible) "睡眠管家" else if (reportSessionId != null) "睡眠报告" else if (historyScreenVisible) "睡眠历史" else selectedTab.label, fontWeight = FontWeight.Bold)
+                }
             }
         }
     ) { innerPadding ->
@@ -121,6 +197,8 @@ fun SleepAgentApp() {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding)
+                    .then(if (selectedTab != MainTab.Home) Modifier.navigationBarsPadding() else Modifier)
             ) {
                 when {
                     historyScreenVisible -> {
@@ -141,9 +219,13 @@ fun SleepAgentApp() {
                     else -> {
                         when (selectedTab) {
                             MainTab.Home -> HomeScreen(
+                                onOpenDrawer = { scope.launch { drawerState.open() } },
+                                agentModel = agentModel,
+                                onConfigureModel = { modelSettingsVisible = true },
                                 onNavigateToSleep = { selectedTab = MainTab.Sleep },
                                 onNavigateToImprove = { selectedTab = MainTab.Improve },
                                 onNavigateToCommunity = { selectedTab = MainTab.Community },
+                                onNavigateToProfile = { selectedTab = MainTab.Profile },
                                 onAskAi = {
                                     aiChatInitialPrompt = "帮我看看今天最需要注意什么"
                                     aiChatVisible = true
@@ -172,16 +254,33 @@ fun SleepAgentApp() {
 
                 // AI Chat overlay (above all content)
                 if (aiChatVisible) {
-                    SleepAgentChatScreen(
-                        onBack = {
-                            aiChatVisible = false
-                            aiChatInitialPrompt = null
-                        },
-                        initialPrompt = aiChatInitialPrompt
-                    )
+                    key(agentModel) {
+                        SleepAgentChatScreen(
+                            model = agentModel,
+                            onConfigureModel = { modelSettingsVisible = true },
+                            onBack = {
+                                aiChatVisible = false
+                                aiChatInitialPrompt = null
+                            },
+                            initialPrompt = aiChatInitialPrompt
+                        )
+                    }
                 }
             }
         }
+    }
+    }
+    if (modelSettingsVisible) {
+        AgentModelSettingsDialog(
+            initial = modelConfig,
+            store = modelStore,
+            onSaved = {
+                modelConfig = it
+                aiChatInitialPrompt = null
+                modelSettingsVisible = false
+            },
+            onDismiss = { modelSettingsVisible = false }
+        )
     }
 }
 
@@ -204,8 +303,8 @@ private fun SleepBackgroundBrush(): Brush {
         colors = listOf(
             primary,
             tertiary,
-            MaterialTheme.colorScheme.background,
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+            SleepPalette.BackgroundMiddle,
+            SleepPalette.BackgroundBottom
         )
     )
 }
@@ -243,80 +342,27 @@ private fun SleepAppDecorations() {
 
 @Composable
 private fun HomeScreen(
+    onOpenDrawer: () -> Unit,
+    agentModel: SleepAgentModel,
+    onConfigureModel: () -> Unit,
     onNavigateToSleep: () -> Unit = {},
     onNavigateToImprove: () -> Unit = {},
     onNavigateToCommunity: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
     onAskAi: () -> Unit = {}
 ) {
-    val appContext = LocalContext.current.applicationContext
-    val displayName = UserPreferences.getDisplayName(appContext)
-    val now = LocalTime.now()
-    val greetingText = when {
-        now.hour in 6..11 -> "早上好，$displayName"
-        now.hour in 12..17 -> "下午好，$displayName"
-        now.hour in 18..22 -> "晚上好，$displayName"
-        else -> "夜深了，$displayName"
-    }
-    val greetingHint = when {
-        now.hour in 6..11 -> "昨晚睡得比前几天更稳定"
-        now.hour in 12..17 -> "今天状态还好吗？"
-        now.hour in 18..22 -> "准备进入今晚的睡眠节奏"
-        else -> "已经很晚了，先慢慢放松下来"
-    }
-    val statusText = when {
-        now.hour in 6..11 -> "恢复良好"
-        now.hour in 12..17 -> "精力稳定"
-        now.hour in 18..22 -> "适合放松"
-        else -> "需要休息"
-    }
-
-    val latestSummary by produceState<SleepNightlySummaryRecord?>(null, appContext) {
-        val repository = SleepStorageRepository(appContext)
-        val session = runCatching {
-            repository.listRecentSessions(limit = 1).firstOrNull()
-        }.getOrNull()
-        value = if (session != null) {
-            runCatching { repository.getNightlySummary(session.sessionId) }.getOrNull()
-        } else null
-    }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        item {
-            HomeHeroCard(
-                greetingText = greetingText,
-                greetingHint = greetingHint,
-                statusText = statusText,
-                summary = latestSummary,
-                onStartPlan = onNavigateToSleep
-            )
-        }
-
-        item {
-            TonightTimelineCard(onExecute = onNavigateToSleep)
-        }
-
-        item {
-            SleepOverviewStrip(onClick = onNavigateToImprove)
-        }
-
-        item {
-            QuickActionChips(
-                onAskAi = onAskAi,
-                onViewProgress = onNavigateToImprove,
-                onCommunity = onNavigateToCommunity
-            )
-        }
-
-        item {
-            DeviceStatusBar()
-        }
+    key(agentModel) {
+        HomeSleepAgentCard(
+            onOpenDrawer = onOpenDrawer,
+            model = agentModel,
+            onConfigureModel = onConfigureModel,
+            onSleep = onNavigateToSleep,
+            onReports = onNavigateToImprove,
+            onCommunity = onNavigateToCommunity,
+            onProfile = onNavigateToProfile
+        )
     }
 }
-
 @Composable
 private fun CommunityScreen() {
     DiscoverScreenContent()

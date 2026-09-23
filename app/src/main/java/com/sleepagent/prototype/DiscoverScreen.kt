@@ -1,5 +1,7 @@
 package com.sleepagent.prototype
 
+import com.sleepagent.prototype.ui.theme.SleepPalette
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -115,9 +117,9 @@ fun DiscoverScreenContent() {
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF10172A),
-                        Color(0xFF0B1020),
-                        Color(0xFF070B16)
+                        SleepPalette.BackgroundTop,
+                        SleepPalette.BackgroundMiddle,
+                        SleepPalette.BackgroundBottom
                     )
                 )
             )
@@ -138,7 +140,7 @@ fun DiscoverScreenContent() {
                     "社区",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.94f)
+                    color = SleepPalette.Ink
                 )
             }
 
@@ -174,14 +176,14 @@ private fun CommunityTopTabs(
             Surface(
                 onClick = { onTabSelected(tab) },
                 shape = RoundedCornerShape(20.dp),
-                color = if (isSelected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.06f),
-                border = if (!isSelected) BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)) else null
+                color = if (isSelected) SleepPalette.Primary else SleepPalette.Card,
+                border = if (!isSelected) BorderStroke(1.dp, SleepPalette.Border) else null
             ) {
                 Text(
                     tab.label,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.50f),
+                    color = if (isSelected) Color.White else SleepPalette.Muted,
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)
                 )
             }
@@ -212,8 +214,8 @@ private fun CheckInChannel() {
 private fun CheckInHero() {
     Surface(
         shape = RoundedCornerShape(32.dp),
-        color = Color(0xFF6C8CFF).copy(alpha = 0.10f),
-        border = BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.16f)),
+        color = SleepPalette.Primary.copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, SleepPalette.Primary.copy(alpha = 0.16f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -224,14 +226,14 @@ private fun CheckInHero() {
                 Icon(
                     Icons.Default.People,
                     contentDescription = null,
-                    tint = Color(0xFF6C8CFF).copy(alpha = 0.80f),
+                    tint = SleepPalette.Primary.copy(alpha = 0.80f),
                     modifier = Modifier.size(22.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     "已有 128 人准备在 23:30 前睡觉",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.72f)
+                    color = SleepPalette.Ink
                 )
             }
 
@@ -239,20 +241,20 @@ private fun CheckInHero() {
                 "今晚一起早睡",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.94f)
+                color = SleepPalette.Ink
             )
 
             Text(
                 "加入今晚打卡，和大家一起慢慢放松，安静地结束这一天。",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.58f)
+                color = SleepPalette.Muted
             )
 
             Button(
                 onClick = { /* TODO: join check-in */ },
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF6C8CFF),
+                    containerColor = SleepPalette.Primary,
                     contentColor = Color.White
                 ),
                 modifier = Modifier.fillMaxWidth()
@@ -275,7 +277,7 @@ private fun CheckInChallenges() {
             "今日挑战",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val challenges = listOf(
@@ -287,13 +289,13 @@ private fun CheckInChallenges() {
             items(challenges) { challenge ->
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = Color.White.copy(alpha = 0.08f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
+                    color = SleepPalette.Card,
+                    border = BorderStroke(1.dp, SleepPalette.Border)
                 ) {
                     Text(
                         challenge,
                         style = MaterialTheme.typography.labelLarge,
-                        color = Color.White.copy(alpha = 0.74f),
+                        color = SleepPalette.Ink,
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                     )
                 }
@@ -309,13 +311,13 @@ private fun CompanionRoomsSection() {
             "陪伴房间",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         mockRooms.forEach { room ->
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = Color.White.copy(alpha = 0.06f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                color = SleepPalette.Card,
+                border = BorderStroke(1.dp, SleepPalette.Border),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -332,20 +334,20 @@ private fun CompanionRoomsSection() {
                         Icon(
                             Icons.Default.People,
                             contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.40f),
+                            tint = SleepPalette.Subtle,
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
                             room.name,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
-                            color = Color.White.copy(alpha = 0.88f)
+                            color = SleepPalette.Ink
                         )
                     }
                     Text(
                         "${room.count} 人",
                         style = MaterialTheme.typography.labelMedium,
-                        color = Color(0xFF6C8CFF).copy(alpha = 0.70f)
+                        color = SleepPalette.Primary.copy(alpha = 0.70f)
                     )
                 }
             }
@@ -360,13 +362,13 @@ private fun LiveCheckInsSection() {
             "大家正在打卡",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         mockCheckInUsers.forEach { user ->
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = Color.White.copy(alpha = 0.06f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                color = SleepPalette.Card,
+                border = BorderStroke(1.dp, SleepPalette.Border),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -379,14 +381,14 @@ private fun LiveCheckInsSection() {
                     Box(
                         modifier = Modifier
                             .size(32.dp)
-                            .background(Color(0xFF6C8CFF).copy(alpha = 0.20f), CircleShape),
+                            .background(SleepPalette.Primary.copy(alpha = 0.20f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             user.name.take(1),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF6C8CFF)
+                            color = SleepPalette.Primary
                         )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -394,12 +396,12 @@ private fun LiveCheckInsSection() {
                             user.name,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color.White.copy(alpha = 0.88f)
+                            color = SleepPalette.Ink
                         )
                         Text(
                             user.message,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.52f)
+                            color = SleepPalette.Muted
                         )
                     }
                 }
@@ -428,19 +430,19 @@ private fun DiscussCircles() {
             "热门圈子",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(mockCircles) { circle ->
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = Color.White.copy(alpha = 0.08f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
+                    color = SleepPalette.Card,
+                    border = BorderStroke(1.dp, SleepPalette.Border)
                 ) {
                     Text(
                         circle.name,
                         style = MaterialTheme.typography.labelLarge,
-                        color = Color.White.copy(alpha = 0.74f),
+                        color = SleepPalette.Ink,
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                     )
                 }
@@ -456,13 +458,13 @@ private fun DiscussHotTopics() {
             "热门讨论",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         mockDiscussions.forEach { post ->
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = Color.White.copy(alpha = 0.06f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                color = SleepPalette.Card,
+                border = BorderStroke(1.dp, SleepPalette.Border),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -475,14 +477,14 @@ private fun DiscussHotTopics() {
                         post.title,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White.copy(alpha = 0.92f),
+                        color = SleepPalette.Ink,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         post.summary,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.50f),
+                        color = SleepPalette.Muted,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -493,17 +495,17 @@ private fun DiscussHotTopics() {
                         Text(
                             post.circle,
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF6C8CFF).copy(alpha = 0.65f)
+                            color = SleepPalette.Primary.copy(alpha = 0.65f)
                         )
                         Text(
                             post.author,
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.38f)
+                            color = SleepPalette.Subtle
                         )
                         Text(
                             "${post.replies} 评论",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.38f)
+                            color = SleepPalette.Subtle
                         )
                     }
                 }
@@ -522,13 +524,13 @@ private fun GoodsChannel() {
             "按场景找好物",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.55f)
+            color = SleepPalette.Muted
         )
         mockGoodScenarios.forEach { scenario ->
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = Color.White.copy(alpha = 0.06f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                color = SleepPalette.Card,
+                border = BorderStroke(1.dp, SleepPalette.Border),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -541,17 +543,17 @@ private fun GoodsChannel() {
                         scenario.title,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.92f)
+                        color = SleepPalette.Ink
                     )
                     Text(
                         scenario.subtitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.50f)
+                        color = SleepPalette.Muted
                     )
                     Text(
                         "推荐：${scenario.items}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF6C8CFF).copy(alpha = 0.75f)
+                        color = SleepPalette.Primary.copy(alpha = 0.75f)
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -560,13 +562,13 @@ private fun GoodsChannel() {
                         Surface(
                             onClick = { /* TODO */ },
                             shape = RoundedCornerShape(14.dp),
-                            color = Color(0xFF6C8CFF).copy(alpha = 0.12f)
+                            color = SleepPalette.Primary.copy(alpha = 0.12f)
                         ) {
                             Text(
                                 "查看推荐",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Medium,
-                                color = Color(0xFF6C8CFF),
+                                color = SleepPalette.Primary,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                             )
                         }
@@ -578,8 +580,8 @@ private fun GoodsChannel() {
         // User experiences
         Surface(
             shape = RoundedCornerShape(20.dp),
-            color = Color.White.copy(alpha = 0.06f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+            color = SleepPalette.Card,
+            border = BorderStroke(1.dp, SleepPalette.Border),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -590,17 +592,17 @@ private fun GoodsChannel() {
                     "用户真实体验",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.55f)
+                    color = SleepPalette.Muted
                 )
                 Text(
                     "小鹿：用了遮光眼罩一周，入睡快了 10 分钟",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.52f)
+                    color = SleepPalette.Muted
                 )
                 Text(
                     "Blue：白噪音对半夜醒来特别有用",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.52f)
+                    color = SleepPalette.Muted
                 )
             }
         }
@@ -615,8 +617,8 @@ private fun CourseChannel() {
         // Hero
         Surface(
             shape = RoundedCornerShape(28.dp),
-            color = Color(0xFF6C8CFF).copy(alpha = 0.08f),
-            border = BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.12f)),
+            color = SleepPalette.Primary.copy(alpha = 0.08f),
+            border = BorderStroke(1.dp, SleepPalette.Primary.copy(alpha = 0.12f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -627,7 +629,7 @@ private fun CourseChannel() {
                 Icon(
                     Icons.Default.SelfImprovement,
                     contentDescription = null,
-                    tint = Color(0xFF6C8CFF).copy(alpha = 0.70f),
+                    tint = SleepPalette.Primary.copy(alpha = 0.70f),
                     modifier = Modifier.size(28.dp)
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -635,12 +637,12 @@ private fun CourseChannel() {
                         "推荐课程",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White.copy(alpha = 0.62f)
+                        color = SleepPalette.Muted
                     )
                     Text(
                         "每天学一点，慢慢改善睡眠。",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.44f)
+                        color = SleepPalette.Subtle
                     )
                 }
             }
@@ -650,8 +652,8 @@ private fun CourseChannel() {
         mockCourses.forEach { course ->
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = Color.White.copy(alpha = 0.06f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                color = SleepPalette.Card,
+                border = BorderStroke(1.dp, SleepPalette.Border),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -664,12 +666,12 @@ private fun CourseChannel() {
                         course.title,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.92f)
+                        color = SleepPalette.Ink
                     )
                     Text(
                         course.subtitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.52f)
+                        color = SleepPalette.Muted
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -678,13 +680,13 @@ private fun CourseChannel() {
                         Surface(
                             onClick = { /* TODO */ },
                             shape = RoundedCornerShape(14.dp),
-                            color = Color(0xFF6C8CFF).copy(alpha = 0.12f)
+                            color = SleepPalette.Primary.copy(alpha = 0.12f)
                         ) {
                             Text(
                                 course.actionLabel,
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Medium,
-                                color = Color(0xFF6C8CFF),
+                                color = SleepPalette.Primary,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                             )
                         }

@@ -12,12 +12,12 @@ val DeepBlue80 = Color(0xFFB7C9FF)
 val LightBlue80 = Color(0xFF8FE7E1)
 val RoyalBlue80 = Color(0xFFD8C4FF)
 
-val DeepBlue40 = Color(0xFF445DA8)
+val DeepBlue40 = SleepPalette.Primary
 val LightBlue40 = Color(0xFF237B81)
 val RoyalBlue40 = Color(0xFF6B55A8)
 
 val SleepBackgroundDark = Color(0xFF050B18)
-val SleepBackgroundLight = Color(0xFFEFF3FA)
+val SleepBackgroundLight = SleepPalette.BackgroundBottom
 
 private val DarkColorScheme = darkColorScheme(
     primary = DeepBlue80,
@@ -57,7 +57,7 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun SleepAgentPrototypeTheme(
-    darkTheme: Boolean = true,
+    darkTheme: Boolean = false,
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
@@ -90,14 +90,14 @@ private object ColorTokens {
     val DarkOnPrimaryContainer = Color(0xFFE4EAFF)
 
     val LightSurface = Color(0xFFFFFFFF)
-    val LightSurfaceLow = Color(0xFFF8FAFF)
-    val LightSurfaceMid = Color(0xFFE5EBF6)
+    val LightSurfaceLow = SleepPalette.Soft
+    val LightSurfaceMid = Color(0xFFEDE7FA)
     val LightOnPrimary = Color(0xFFFFFFFF)
     val LightOnSecondary = Color(0xFFFFFFFF)
     val LightOnTertiary = Color(0xFFFFFFFF)
-    val LightOnBackground = Color(0xFF172033)
-    val LightOnSurface = Color(0xFF172033)
-    val LightOnSurfaceVariant = Color(0xFF526073)
-    val LightPrimaryContainer = Color(0xFFE3E8FF)
-    val LightOnPrimaryContainer = Color(0xFF263A73)
+    val LightOnBackground = SleepPalette.Ink
+    val LightOnSurface = SleepPalette.Ink
+    val LightOnSurfaceVariant = SleepPalette.Muted
+    val LightPrimaryContainer = Color(0xFFE3DCF9)
+    val LightOnPrimaryContainer = Color(0xFF51419C)
 }

@@ -98,15 +98,28 @@ class SleepRecordingService : Service() {
     private var sleepStagePipeline = SleepStagePipeline(inferenceEngine = sleepStageInferenceEngine)
     private var lastPersistedStageEpochIndex: Int = -1
 
-    private val soundInterventionController by lazy {
-        SoundInterventionController(applicationContext).also { controller ->
-            controller.eventLogger = { event ->
-                serviceScope.launch(Dispatchers.IO) {
-                    runCatching {
-                        repository.insertInterventionEvent(event)
-                    }
+    private var exportFailure: String? = null
+    private var logFailure: String? = null
+    private var lastInferenceNanos = 0L
+    private var observedInferenceEpoch: Int? = null
+    private var lastRawPacketNanos = 0L
+    private val interventionEventWriter: com.sleepagent.prototype.data.InterventionEventWriter by lazy {
+        com.sleepagent.prototype.data.InterventionEventWriter(
+            serviceScope,
+            persist = repository::insertInterventionEvent,
+            onFailure = { error ->
+                Log.e("SleepRecordingService", "Stimulation log persistence failed", error)
+                if (logFailure == null) {
+                    logFailure = "刺激日志保存失败: ${error.message}"
+                    soundInterventionController.pauseAll()
                 }
+                _recordingState.update { it.copy(message = logFailure) }
             }
+        )
+    }
+    private val soundInterventionController: SoundInterventionController by lazy {
+        SoundInterventionController(applicationContext).also { controller ->
+            controller.eventLogger = interventionEventWriter::append
         }
     }
 
@@ -127,6 +140,7 @@ class SleepRecordingService : Service() {
             runCatching { finishActiveSession(SleepSessionStatus.ABORTED) }
             runCatching { manager?.disconnect() }
             runCatching { soundInterventionController.release() }
+            interventionEventWriter.close()
             releaseWakeLock()
             serviceScope.cancel()
         }
@@ -146,6 +160,8 @@ class SleepRecordingService : Service() {
 
     suspend fun startRecording(useMockManager: Boolean, fallbackDevice: HeadbandDevice?) = operationMutex.withLock {
         if (_recordingState.value.isRecording) return@withLock
+        check(logFailure == null) { "刺激日志写入失败，请重启采集服务后重试。" }
+        exportFailure = null
         ensureForeground()
         acquireWakeLock()
 
@@ -215,7 +231,7 @@ class SleepRecordingService : Service() {
                     sessionId = null,
                     sessionPath = null,
                     isRecording = false,
-                    message = if (exportHint != null) {
+                    message = if (exportFailure != null) exportFailure else if (exportHint != null) {
                         "已结束睡眠。导出包: $exportHint"
                     } else {
                         "已结束睡眠。"
@@ -246,7 +262,7 @@ class SleepRecordingService : Service() {
                 sessionId = null,
                 sessionPath = null,
                 isRecording = false,
-                message = if (exportHint != null) {
+                message = if (exportFailure != null) exportFailure else if (exportHint != null) {
                     "设备已断开。导出包: $exportHint"
                 } else {
                     "设备已断开。"
@@ -308,6 +324,11 @@ class SleepRecordingService : Service() {
         connectionJob = serviceScope.launch {
             currentManager.connectionState.collectLatest { state ->
                 _recordingState.update { it.copy(connectionState = state) }
+                if (state != DeviceConnectionState.CONNECTED && _recordingState.value.isRecording) {
+                    soundInterventionController.invalidateFeedback("device_disconnected")
+                    sleepStagePipeline.discardIncompleteContext()
+                    eegDownsampler = SleepEegDownsampler()
+                }
             }
         }
         statusJob = serviceScope.launch {
@@ -323,6 +344,13 @@ class SleepRecordingService : Service() {
     }
 
     private suspend fun handleRawPacket(packet: HeadbandRawPacket) {
+        val receivedNanos = SystemClock.elapsedRealtimeNanos()
+        if (lastRawPacketNanos > 0L && receivedNanos - lastRawPacketNanos > 2_000_000_000L) {
+            sleepStagePipeline.discardIncompleteContext()
+            eegDownsampler = SleepEegDownsampler()
+            soundInterventionController.invalidateFeedback("data_timeout")
+        }
+        lastRawPacketNanos = receivedNanos
         logRaw51Check(packet)
 
         val downsampledEegSample = eegDownsampler.ingest(packet)
@@ -337,6 +365,10 @@ class SleepRecordingService : Service() {
             soundInterventionController.ingestEegSample(downsampledEegSample.valueMicrovolts)
         }
         val stageSnapshot = sleepStagePipeline.snapshot()
+        if (stageSnapshot.latestResult?.epochIndex != observedInferenceEpoch) {
+            observedInferenceEpoch = stageSnapshot.latestResult?.epochIndex
+            lastInferenceNanos = SystemClock.elapsedRealtimeNanos()
+        }
         persistStageResultIfNeeded(stageSnapshot.latestResult)
 
         // Feed intervention controller with real-time snapshot
@@ -362,7 +394,12 @@ class SleepRecordingService : Service() {
             eegQuality = snapshot.eeg.signalQuality ?: 0f,
             motionLevel = null,
             heartRate = snapshot.hrv.heartRateBpm?.toFloat(),
-            isDeviceConnected = _recordingState.value.connectionState == DeviceConnectionState.CONNECTED
+            isDeviceConnected = _recordingState.value.connectionState == DeviceConnectionState.CONNECTED,
+            isRealModelResult = managerUsesMock == false && sleepStageInferenceEngine.isRealModelActive &&
+                stageSnapshot.latestResult != null,
+            stageEpochIndex = stageSnapshot.latestResult?.epochIndex,
+            stageAgeMillis = if (lastInferenceNanos > 0L)
+                (SystemClock.elapsedRealtimeNanos() - lastInferenceNanos) / 1_000_000L else Long.MAX_VALUE
         )
         if (_recordingState.value.isRecording) {
             runCatching {
@@ -430,12 +467,13 @@ class SleepRecordingService : Service() {
                 repository.upsertNightlySummary(summary)
             }
         }
-        if (finishedSession.packetCount <= 0L) return null
         return runCatching {
+            interventionEventWriter.flush()
             repository.exportSessionBundle(finishedSession).locationHint
         }.onFailure { error ->
+            exportFailure = "采集已保存，但日志或导出失败: ${error.message ?: "unknown error"}"
             _recordingState.update {
-                it.copy(message = "采集已保存，但导出失败: ${error.message ?: "unknown error"}")
+                it.copy(message = exportFailure)
             }
         }.getOrNull()
     }
@@ -446,6 +484,9 @@ class SleepRecordingService : Service() {
         // Re-use the same engine instance — no need to reload the model weights.
         sleepStagePipeline = SleepStagePipeline(inferenceEngine = sleepStageInferenceEngine)
         lastPersistedStageEpochIndex = -1
+        observedInferenceEpoch = null
+        lastInferenceNanos = 0L
+        lastRawPacketNanos = 0L
     }
 
     private suspend fun persistStageResultIfNeeded(
@@ -479,7 +520,9 @@ class SleepRecordingService : Service() {
             },
             confidence = result.confidence,
             avgSignalQuality = null,
-            source = com.sleepagent.prototype.data.SleepStageSource.MODEL,
+            source = if (managerUsesMock == false && sleepStageInferenceEngine.isRealModelActive)
+                com.sleepagent.prototype.data.SleepStageSource.MODEL
+            else com.sleepagent.prototype.data.SleepStageSource.MOCK,
             featuresJson = null
         )
 
@@ -577,6 +620,7 @@ private class LazyFallbackSleepStageInferenceEngine(
     private val fallbackEngine = MockSleepStageInferenceEngine()
     private var realEngine: SleepStageInferenceEngine? = null
     private var realEngineDisabled = false
+    val isRealModelActive: Boolean get() = realEngine != null && !realEngineDisabled
 
     override fun predict(input: Array<FloatArray>): SleepStagePrediction {
         if (realEngineDisabled) {

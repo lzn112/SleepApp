@@ -70,6 +70,19 @@ class SleepStagePipelineTest {
         assertEquals(0, snapshot.bufferedSamples)
     }
 
+    @Test
+    fun dataGapDropsOldFeedbackAndDoesNotReuseEpochIds() {
+        val pipeline = SleepStagePipeline()
+        repeat(15000) { pipeline.ingest(sample(it)) }
+        val previousEpoch = requireNotNull(pipeline.snapshot().latestResult).epochIndex
+        pipeline.discardIncompleteContext()
+        assertNull(pipeline.snapshot().latestResult)
+        repeat(12000) { pipeline.ingest(sample(20000 + it)) }
+        assertNull(pipeline.snapshot().latestResult)
+        repeat(3000) { pipeline.ingest(sample(32000 + it)) }
+        assertTrue(requireNotNull(pipeline.snapshot().latestResult).epochIndex > previousEpoch)
+    }
+
     private fun sample(index: Int): DownsampledEegSample {
         return DownsampledEegSample(
             timestampMillis = index.toLong(),

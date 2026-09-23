@@ -27,6 +27,14 @@ class SleepStagePipeline(
         latestResult = null
     }
 
+    /** Drop context spanning a data gap without reusing persisted epoch IDs. */
+    fun discardIncompleteContext() {
+        currentEpochBuffer.clear()
+        completedEpochWindow.clear()
+        latestResult = null
+        nextEpochIndex += 1
+    }
+
     fun ingest(sample: DownsampledEegSample) {
         currentEpochBuffer.add(sample.valueMicrovolts)
         if (currentEpochBuffer.size >= epochSizeSamples) {

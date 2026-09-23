@@ -1,5 +1,7 @@
 package com.sleepagent.prototype
 
+import com.sleepagent.prototype.ui.theme.SleepPalette
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -208,9 +210,9 @@ private fun ProfileMainContent(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF10172A),
-                        Color(0xFF0B1020),
-                        Color(0xFF070B16)
+                        SleepPalette.BackgroundTop,
+                        SleepPalette.BackgroundMiddle,
+                        SleepPalette.BackgroundBottom
                     )
                 )
             )
@@ -231,7 +233,7 @@ private fun ProfileMainContent(
                     "我的",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.94f)
+                    color = SleepPalette.Ink
                 )
             }
 
@@ -284,13 +286,13 @@ private fun ProfileMainContent(
                         }
                     },
                     shape = RoundedCornerShape(20.dp),
-                    color = Color.White.copy(alpha = 0.04f),
+                    color = SleepPalette.Card,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         "生成近一周演示数据",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.24f),
+                        color = SleepPalette.Border,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
                     )
                 }
@@ -308,8 +310,8 @@ private fun ProfileHeroCard(
 ) {
     Surface(
         shape = RoundedCornerShape(32.dp),
-        color = Color.White.copy(alpha = 0.08f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -324,13 +326,13 @@ private fun ProfileHeroCard(
                 Box(
                     modifier = Modifier
                         .size(64.dp)
-                        .background(Color(0xFF6C8CFF).copy(alpha = 0.18f), RoundedCornerShape(22.dp)),
+                        .background(SleepPalette.Primary.copy(alpha = 0.18f), RoundedCornerShape(22.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         profile.avatarEmoji,
                         style = MaterialTheme.typography.headlineSmall,
-                        color = Color(0xFF6C8CFF)
+                        color = SleepPalette.Primary
                     )
                 }
                 Column(
@@ -341,17 +343,17 @@ private fun ProfileHeroCard(
                         profile.nickname,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.94f)
+                        color = SleepPalette.Ink
                     )
                     Text(
                         "已连续记录 12 晚",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.52f)
+                        color = SleepPalette.Muted
                     )
                     Text(
                         "当前目标：${profile.currentGoal}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF6C8CFF).copy(alpha = 0.70f)
+                        color = SleepPalette.Primary.copy(alpha = 0.70f)
                     )
                 }
             }
@@ -361,7 +363,7 @@ private fun ProfileHeroCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(Color.White.copy(alpha = 0.06f))
+                    .background(SleepPalette.Card)
             )
 
             // Edit button row
@@ -373,18 +375,18 @@ private fun ProfileHeroCard(
                 Text(
                     if (profile.gender != "未设置") "${profile.gender} · ${profile.ageRange}" else "完善信息，获得更个性化建议",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.68f)
+                    color = SleepPalette.Muted
                 )
                 Surface(
                     onClick = onEdit,
                     shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFF6C8CFF).copy(alpha = 0.12f)
+                    color = SleepPalette.Primary.copy(alpha = 0.12f)
                 ) {
                     Text(
                         "编辑资料",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFF6C8CFF),
+                        color = SleepPalette.Primary,
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                     )
                 }
@@ -399,8 +401,8 @@ private fun ProfileHeroCard(
 private fun MyDeviceCard() {
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -411,7 +413,7 @@ private fun MyDeviceCard() {
                 "我的设备",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.55f)
+                color = SleepPalette.Muted
             )
 
             Row(
@@ -421,13 +423,13 @@ private fun MyDeviceCard() {
                 Box(
                     modifier = Modifier
                         .size(42.dp)
-                        .background(Color(0xFF6C8CFF).copy(alpha = 0.12f), RoundedCornerShape(14.dp)),
+                        .background(SleepPalette.Primary.copy(alpha = 0.12f), RoundedCornerShape(14.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.BatteryChargingFull,
                         contentDescription = null,
-                        tint = Color(0xFF6C8CFF),
+                        tint = SleepPalette.Primary,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -436,12 +438,12 @@ private fun MyDeviceCard() {
                         "SleepAgent Headband",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White.copy(alpha = 0.88f)
+                        color = SleepPalette.Ink
                     )
                     Text(
                         "已连接 · 电量 76% · 信号正常",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.48f)
+                        color = SleepPalette.Muted
                     )
                 }
             }
@@ -449,14 +451,14 @@ private fun MyDeviceCard() {
             Surface(
                 onClick = { /* TODO: device management */ },
                 shape = RoundedCornerShape(14.dp),
-                color = Color(0xFF6C8CFF).copy(alpha = 0.10f),
+                color = SleepPalette.Primary.copy(alpha = 0.10f),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     "设备管理",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF6C8CFF),
+                    color = SleepPalette.Primary,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                 )
             }
@@ -473,8 +475,8 @@ private fun SleepPreferenceSection(
 ) {
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -490,18 +492,18 @@ private fun SleepPreferenceSection(
                     "睡眠偏好",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.55f)
+                    color = SleepPalette.Muted
                 )
                 Surface(
                     onClick = onEdit,
                     shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF6C8CFF).copy(alpha = 0.10f)
+                    color = SleepPalette.Primary.copy(alpha = 0.10f)
                 ) {
                     Text(
                         "编辑",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFF6C8CFF),
+                        color = SleepPalette.Primary,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
@@ -529,7 +531,7 @@ private fun PreferenceRow(label: String, value: String) {
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.62f)
+            color = SleepPalette.Muted
         )
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -539,12 +541,12 @@ private fun PreferenceRow(label: String, value: String) {
                 value,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                color = Color.White.copy(alpha = 0.80f)
+                color = SleepPalette.Ink
             )
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.30f),
+                tint = SleepPalette.Subtle,
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -606,8 +608,8 @@ private fun SectionCard(
 ) {
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -618,7 +620,7 @@ private fun SectionCard(
                 title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.55f),
+                color = SleepPalette.Muted,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
             rows.forEachIndexed { index, row ->
@@ -629,7 +631,7 @@ private fun SectionCard(
                             .fillMaxWidth()
                             .padding(start = 48.dp)
                             .height(1.dp)
-                            .background(Color.White.copy(alpha = 0.04f))
+                            .background(SleepPalette.Card)
                     )
                 }
             }
@@ -654,13 +656,13 @@ private fun SectionRowItem(row: SectionRow) {
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp)),
+                    .background(SleepPalette.Card, RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     rowIcon,
                     contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.48f),
+                    tint = SleepPalette.Muted,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -676,13 +678,13 @@ private fun SectionRowItem(row: SectionRow) {
                 row.label,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                color = Color.White.copy(alpha = 0.82f)
+                color = SleepPalette.Ink
             )
             if (row.subtitle.isNotEmpty()) {
                 Text(
                     row.subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.40f)
+                    color = SleepPalette.Subtle
                 )
             }
         }
@@ -690,7 +692,7 @@ private fun SectionRowItem(row: SectionRow) {
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.30f),
+            tint = SleepPalette.Subtle,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -702,8 +704,8 @@ private fun SectionRowItem(row: SectionRow) {
 private fun AdvancedModeCard() {
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.04f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -714,23 +716,23 @@ private fun AdvancedModeCard() {
                 "高级模式",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.38f)
+                color = SleepPalette.Subtle
             )
             Text(
                 "研究者功能、原始信号和设备调试。普通用户无需开启。",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.30f)
+                color = SleepPalette.Subtle
             )
             Surface(
                 onClick = { /* TODO: enter advanced mode */ },
                 shape = RoundedCornerShape(14.dp),
-                color = Color.White.copy(alpha = 0.06f)
+                color = SleepPalette.Card
             ) {
                 Text(
                     "进入高级模式",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.36f),
+                    color = SleepPalette.Subtle,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                 )
             }
@@ -829,14 +831,14 @@ private fun SleepPreferenceEditSheet(
             "${targetSleepHours} 小时",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF6C8CFF)
+            color = SleepPalette.Primary
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text("5.0", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.30f))
+            Text("5.0", style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
             Slider(
                 value = targetSleepHours,
                 onValueChange = { targetSleepHours = (it * 2f).roundToInt() / 2f },
@@ -844,12 +846,12 @@ private fun SleepPreferenceEditSheet(
                 steps = 9,
                 modifier = Modifier.weight(1f),
                 colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFF6C8CFF),
-                    activeTrackColor = Color(0xFF6C8CFF),
-                    inactiveTrackColor = Color.White.copy(alpha = 0.10f)
+                    thumbColor = SleepPalette.Primary,
+                    activeTrackColor = SleepPalette.Primary,
+                    inactiveTrackColor = SleepPalette.Card
                 )
             )
-            Text("10.0", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.30f))
+            Text("10.0", style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
         }
 
         // Default bedtime
@@ -897,9 +899,9 @@ private fun EditSheetScaffold(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF10172A),
-                        Color(0xFF0B1020),
-                        Color(0xFF070B16)
+                        SleepPalette.BackgroundTop,
+                        SleepPalette.BackgroundMiddle,
+                        SleepPalette.BackgroundBottom
                     )
                 )
             )
@@ -921,14 +923,14 @@ private fun EditSheetScaffold(
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "返回",
-                        tint = Color.White.copy(alpha = 0.70f)
+                        tint = SleepPalette.Muted
                     )
                 }
                 Text(
                     title,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.94f),
+                    color = SleepPalette.Ink,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -958,7 +960,7 @@ private fun EditSheetScaffold(
                 onClick = onSave,
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF6C8CFF),
+                    containerColor = SleepPalette.Primary,
                     contentColor = Color.White
                 ),
                 modifier = Modifier.fillMaxWidth()
@@ -980,7 +982,7 @@ private fun GroupLabel(text: String) {
         text,
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.SemiBold,
-        color = Color.White.copy(alpha = 0.44f),
+        color = SleepPalette.Subtle,
         modifier = Modifier.padding(top = 4.dp)
     )
 }
@@ -994,7 +996,7 @@ private fun ChipGroup(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (title != null) {
-            Text(title, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.36f))
+            Text(title, style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1005,14 +1007,14 @@ private fun ChipGroup(
                 Surface(
                     onClick = { onSelect(option) },
                     shape = RoundedCornerShape(10.dp),
-                    color = if (isSelected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
-                    border = if (isSelected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null
+                    color = if (isSelected) SleepPalette.Primary.copy(alpha = 0.18f) else SleepPalette.Card,
+                    border = if (isSelected) BorderStroke(1.dp, SleepPalette.Primary.copy(alpha = 0.30f)) else null
                 ) {
                     Text(
                         option,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (isSelected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
+                        color = if (isSelected) SleepPalette.Primary else SleepPalette.Subtle,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                     )
                 }
@@ -1036,14 +1038,14 @@ private fun MultiChipGroup(
             Surface(
                 onClick = { onToggle(option) },
                 shape = RoundedCornerShape(10.dp),
-                color = if (isSelected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
-                border = if (isSelected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null
+                color = if (isSelected) SleepPalette.Primary.copy(alpha = 0.18f) else SleepPalette.Card,
+                border = if (isSelected) BorderStroke(1.dp, SleepPalette.Primary.copy(alpha = 0.30f)) else null
             ) {
                 Text(
                     option,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (isSelected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
+                    color = if (isSelected) SleepPalette.Primary else SleepPalette.Subtle,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
@@ -1065,18 +1067,18 @@ private fun ToggleSetting(
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.62f)
+            color = SleepPalette.Muted
         )
         Surface(
             onClick = { onToggle(!checked) },
             shape = RoundedCornerShape(12.dp),
-            color = if (checked) Color(0xFF6C8CFF).copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f)
+            color = if (checked) SleepPalette.Primary.copy(alpha = 0.20f) else SleepPalette.Card
         ) {
             Text(
                 if (checked) "开启" else "关闭",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium,
-                color = if (checked) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.40f),
+                color = if (checked) SleepPalette.Primary else SleepPalette.Subtle,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
             )
         }
@@ -1097,13 +1099,13 @@ private fun TimeAdjustRow(
         Surface(
             onClick = onMinus,
             shape = RoundedCornerShape(8.dp),
-            color = Color.White.copy(alpha = 0.08f)
+            color = SleepPalette.Card
         ) {
             Text(
                 "-15",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium,
-                color = Color.White.copy(alpha = 0.55f),
+                color = SleepPalette.Muted,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
             )
         }
@@ -1111,19 +1113,19 @@ private fun TimeAdjustRow(
             time,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = Color.White.copy(alpha = 0.90f),
+            color = SleepPalette.Ink,
             modifier = Modifier.padding(horizontal = 24.dp)
         )
         Surface(
             onClick = onPlus,
             shape = RoundedCornerShape(8.dp),
-            color = Color.White.copy(alpha = 0.08f)
+            color = SleepPalette.Card
         ) {
             Text(
                 "+15",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium,
-                color = Color.White.copy(alpha = 0.55f),
+                color = SleepPalette.Muted,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
             )
         }
@@ -1132,13 +1134,13 @@ private fun TimeAdjustRow(
 
 @Composable
 private fun darkFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = Color.White.copy(alpha = 0.90f),
-    unfocusedTextColor = Color.White.copy(alpha = 0.70f),
-    focusedLabelColor = Color(0xFF6C8CFF),
-    unfocusedLabelColor = Color.White.copy(alpha = 0.40f),
-    cursorColor = Color(0xFF6C8CFF),
-    focusedBorderColor = Color(0xFF6C8CFF),
-    unfocusedBorderColor = Color.White.copy(alpha = 0.12f)
+    focusedTextColor = SleepPalette.Ink,
+    unfocusedTextColor = SleepPalette.Muted,
+    focusedLabelColor = SleepPalette.Primary,
+    unfocusedLabelColor = SleepPalette.Subtle,
+    cursorColor = SleepPalette.Primary,
+    focusedBorderColor = SleepPalette.Primary,
+    unfocusedBorderColor = SleepPalette.Card
 )
 
 private fun adjustTimeStr(time: String, deltaMin: Int): String {

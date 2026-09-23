@@ -17,5 +17,9 @@ data class RealtimeSleepSnapshot(
     val motionLevel: Float? = null,
     val heartRate: Float? = null,
 
-    val isDeviceConnected: Boolean = true
+    val isDeviceConnected: Boolean = true,
+    // Fail closed until a real, recent model epoch is available.
+    val isRealModelResult: Boolean = false,
+    val stageEpochIndex: Int? = null,
+    val stageAgeMillis: Long = Long.MAX_VALUE
 )

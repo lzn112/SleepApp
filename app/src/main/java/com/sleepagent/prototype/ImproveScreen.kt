@@ -1,5 +1,7 @@
 package com.sleepagent.prototype
 
+import com.sleepagent.prototype.ui.theme.SleepPalette
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -112,9 +114,9 @@ fun mockImproveUiState(): ImproveUiState = ImproveUiState(
         focusValue = "18m"
     ),
     trends = listOf(
-        TrendUi(Icons.AutoMirrored.Filled.TrendingDown, "入睡用时", "28m", "21m", Color(0xFF2FCBBC)),
+        TrendUi(Icons.AutoMirrored.Filled.TrendingDown, "入睡用时", "28m", "21m", SleepPalette.Success),
         TrendUi(Icons.AutoMirrored.Filled.TrendingUp, "作息规律", "一般", "良好", Color(0xFF2D79FF)),
-        TrendUi(Icons.AutoMirrored.Filled.TrendingDown, "夜醒次数", "3次", "2次", Color(0xFF2FCBBC))
+        TrendUi(Icons.AutoMirrored.Filled.TrendingDown, "夜醒次数", "3次", "2次", SleepPalette.Success)
     ),
     recentRecords = listOf(
         RecentRecordUi("mock_1", "昨晚", 82, "7h12m"),
@@ -179,9 +181,9 @@ fun ImproveScreen(
 private fun ImproveGoalHero(state: ImproveUiState) {
     val heroBrush = Brush.verticalGradient(
         colors = listOf(
-            Color(0xFF141E3A),
-            Color(0xFF1A2D55),
-            Color(0xFF1F3A6B)
+            SleepPalette.BackgroundTop,
+            SleepPalette.BackgroundMiddle,
+            SleepPalette.BackgroundBottom
         )
     )
 
@@ -214,7 +216,7 @@ private fun ImproveGoalHero(state: ImproveUiState) {
                 .align(Alignment.TopEnd)
                 .padding(top = 12.dp, end = 22.dp)
                 .size(32.dp)
-                .background(Color.White.copy(alpha = 0.08f), CircleShape)
+                .background(SleepPalette.Card, CircleShape)
         )
         Box(
             modifier = Modifier
@@ -278,18 +280,18 @@ private fun ImproveGoalHero(state: ImproveUiState) {
                     "当前目标",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.70f)
+                    color = SleepPalette.Muted
                 )
                 Surface(
                     onClick = { /* TODO: goal picker */ },
                     shape = RoundedCornerShape(12.dp),
-                    color = Color.White.copy(alpha = 0.12f)
+                    color = SleepPalette.Card
                 ) {
                     Text(
                         "调整",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Medium,
-                        color = Color.White.copy(alpha = 0.76f),
+                        color = SleepPalette.Ink,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                     )
                 }
@@ -303,7 +305,7 @@ private fun ImproveGoalHero(state: ImproveUiState) {
                 Box(
                     modifier = Modifier
                         .size(42.dp)
-                        .background(Color.White.copy(alpha = 0.10f), CircleShape),
+                        .background(SleepPalette.Card, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -330,7 +332,7 @@ private fun ImproveGoalHero(state: ImproveUiState) {
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp)),
                 color = Color(0xFF5BA0FF),
-                trackColor = Color.White.copy(alpha = 0.12f),
+                trackColor = SleepPalette.Border,
                 strokeCap = StrokeCap.Round,
             )
 
@@ -344,13 +346,13 @@ private fun ImproveGoalHero(state: ImproveUiState) {
                     Text(
                         state.goalSubtitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.68f)
+                        color = SleepPalette.Muted
                     )
                     Text(
                         "平均入睡减少 ${state.improvementMinutes} 分钟",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
-                        color = Color.White.copy(alpha = 0.82f)
+                        color = SleepPalette.Ink
                     )
                 }
             }
@@ -671,7 +673,7 @@ private fun AiImproveSuggestionCard(onAdjustPlan: () -> Unit) {
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = Color(0xFF143A9A),
+                    color = SleepPalette.Primary,
                     modifier = Modifier.size(34.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -918,7 +920,7 @@ private fun ImproveScreenPreview() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF151D38))
+                .background(SleepPalette.BackgroundBottom)
         ) {
             ImproveScreen()
         }

@@ -79,7 +79,7 @@ class SleepStorageRepository(
     suspend fun exportSessionBundle(
         session: SleepSessionRecord
     ): SleepSessionExportResult {
-        return sessionExportWriter.exportSessionBundle(session)
+        return sessionExportWriter.exportSessionBundle(session, exportInterventionCsv(session.sessionId))
     }
 
     suspend fun finishSession(
@@ -247,11 +247,29 @@ class SleepStorageRepository(
 
     suspend fun insertInterventionEvent(event: SoundInterventionEventEntity) {
         withContext(ioDispatcher) {
-            databaseHelper.writableDatabase.insert(
+            databaseHelper.writableDatabase.insertOrThrow(
                 SleepStorageDatabaseHelper.TABLE_SOUND_INTERVENTION_EVENT,
                 null,
                 event.toContentValues()
             )
+        }
+    }
+
+    /** Includes all event columns, ordered deterministically within this session. */
+    suspend fun exportInterventionCsv(sessionId: String): String = withContext(ioDispatcher) {
+        databaseHelper.readableDatabase.query(
+            SleepStorageDatabaseHelper.TABLE_SOUND_INTERVENTION_EVENT, null,
+            "session_id = ?", arrayOf(sessionId), null, null,
+            "elapsed_realtime_nanos ASC, id ASC"
+        ).use { cursor ->
+            buildString {
+                append(InterventionCsv.row(cursor.columnNames.toList()))
+                while (cursor.moveToNext()) {
+                    append(InterventionCsv.row((0 until cursor.columnCount).map {
+                        if (cursor.isNull(it)) null else cursor.getString(it)
+                    }))
+                }
+            }
         }
     }
 

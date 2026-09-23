@@ -1,5 +1,7 @@
 package com.sleepagent.prototype
 
+import com.sleepagent.prototype.ui.theme.SleepPalette
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -31,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,11 +47,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.sleepagent.prototype.ui.theme.SleepAgentPrototypeTheme
-import kotlinx.coroutines.delay
+import com.sleepagent.prototype.agent.AgentMessage
+import com.sleepagent.prototype.agent.AgentRole
+import com.sleepagent.prototype.agent.AndroidSleepAgentContextSource
+import com.sleepagent.prototype.agent.AgentServiceException
+import com.sleepagent.prototype.agent.UnconfiguredSleepAgentModel
+import com.sleepagent.prototype.agent.SleepAgent
+import com.sleepagent.prototype.agent.SleepAgentModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -67,38 +78,61 @@ private data class ChatMessageUi(
 @Composable
 fun SleepAgentChatScreen(
     onBack: () -> Unit,
-    initialPrompt: String? = null
+    initialPrompt: String? = null,
+    model: SleepAgentModel? = null,
+    onConfigureModel: () -> Unit = {}
 ) {
     val messages = remember { mutableStateListOf<ChatMessageUi>() }
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current.applicationContext
+    val agent = remember(context, model) {
+        SleepAgent(AndroidSleepAgentContextSource(context), model ?: UnconfiguredSleepAgentModel())
+    }
+    var isLoading by remember { mutableStateOf(false) }
+    var failedPrompt by remember { mutableStateOf<String?>(null) }
+    var errorText by remember { mutableStateOf("") }
+
+    fun sendMessage(text: String, retry: Boolean = false) {
+        if (isLoading || text.isBlank()) return
+        if (!retry) messages.add(ChatMessageUi(role = ChatRole.User, text = text))
+        failedPrompt = null
+        isLoading = true
+        scope.launch {
+            try {
+                // The introduction is presentation copy, not model conversation history.
+                val history = messages.drop(1).map {
+                    AgentMessage(if (it.role == ChatRole.User) AgentRole.USER else AgentRole.ASSISTANT, it.text)
+                }
+                val reply = agent.respond(history)
+                messages.add(ChatMessageUi(role = ChatRole.Agent, text = reply.displayText()))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                errorText = (e as? AgentServiceException)?.message ?: "暂时无法完成请求，请重试。"
+                failedPrompt = text
+            } finally {
+                isLoading = false
+            }
+        }
+    }
 
     // Add intro message from agent
     LaunchedEffect(Unit) {
         messages.add(
             ChatMessageUi(
                 role = ChatRole.Agent,
-                text = "我会根据你的睡眠记录，帮你分析原因，并安排今晚计划。"
+                text = "我可以读取近期睡眠摘要，帮你整理今晚计划。${agent.model.statusLabel}。"
             )
         )
-    }
-
-    // Handle initial prompt
-    LaunchedEffect(initialPrompt) {
         if (!initialPrompt.isNullOrBlank()) {
-            messages.add(ChatMessageUi(role = ChatRole.User, text = initialPrompt))
-            messages.add(
-                ChatMessageUi(
-                    role = ChatRole.Agent,
-                    text = generateMockAgentReply(initialPrompt)
-                )
-            )
+            sendMessage(initialPrompt)
         }
     }
 
     // Scroll to bottom when messages change
-    LaunchedEffect(messages.size) {
+    LaunchedEffect(messages.size, isLoading, failedPrompt) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
@@ -110,15 +144,22 @@ fun SleepAgentChatScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF10172A),
-                        Color(0xFF0B1020),
-                        Color(0xFF070B16)
+                        SleepPalette.BackgroundTop,
+                        SleepPalette.BackgroundMiddle,
+                        SleepPalette.BackgroundBottom
                     )
                 )
             )
     ) {
         // ── Top Bar ──
         ChatTopBar(onBack = onBack)
+        TextButton(onClick = onConfigureModel, enabled = !isLoading) { Text("配置模型") }
+        Text(
+            agent.model.statusLabel,
+            color = SleepPalette.Muted,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
 
         // ── Messages ──
         LazyColumn(
@@ -136,16 +177,7 @@ fun SleepAgentChatScreen(
                 item {
                     QuickQuestionSection(
                         onQuestionClick = { question ->
-                            messages.add(ChatMessageUi(role = ChatRole.User, text = question))
-                            scope.launch {
-                                delay(400)
-                                messages.add(
-                                    ChatMessageUi(
-                                        role = ChatRole.Agent,
-                                        text = generateMockAgentReply(question)
-                                    )
-                                )
-                            }
+                            sendMessage(question)
                         }
                     )
                 }
@@ -159,27 +191,34 @@ fun SleepAgentChatScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(80.dp)) }
+            if (isLoading) {
+                item { AgentMessageBubble(text = "正在读取睡眠记录并整理回复…") }
+            }
+            failedPrompt?.let { prompt ->
+                item {
+                    Surface(
+                        onClick = { sendMessage(prompt, retry = true) },
+                        color = SleepPalette.Card,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("$errorText\n点击重试", color = Color.White,
+                            modifier = Modifier.padding(16.dp))
+                    }
+                }
+            }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
         }
 
         // ── Input Bar ──
         ChatInputBar(
             inputText = inputText,
+            enabled = !isLoading,
             onInputTextChange = { inputText = it },
             onSend = {
                 val text = inputText.trim()
-                if (text.isBlank()) return@ChatInputBar
-                messages.add(ChatMessageUi(role = ChatRole.User, text = text))
+                if (text.isBlank() || isLoading) return@ChatInputBar
                 inputText = ""
-                scope.launch {
-                    delay(400)
-                    messages.add(
-                        ChatMessageUi(
-                            role = ChatRole.Agent,
-                            text = generateMockAgentReply(text)
-                        )
-                    )
-                }
+                sendMessage(text)
             }
         )
     }
@@ -207,13 +246,13 @@ private fun ChatTopBar(onBack: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .background(Color(0xFF6C8CFF).copy(alpha = 0.16f), CircleShape),
+                        .background(SleepPalette.Primary.copy(alpha = 0.16f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.SmartToy,
                         contentDescription = null,
-                        tint = Color(0xFF6C8CFF),
+                        tint = SleepPalette.Primary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -221,19 +260,19 @@ private fun ChatTopBar(onBack: () -> Unit) {
                     "睡眠管家",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.94f)
+                    color = SleepPalette.Ink
                 )
             }
 
             Surface(
                 onClick = onBack,
                 shape = CircleShape,
-                color = Color.White.copy(alpha = 0.08f)
+                color = SleepPalette.Card
             ) {
                 Icon(
                     Icons.Default.Close,
                     contentDescription = "关闭",
-                    tint = Color.White.copy(alpha = 0.60f),
+                    tint = SleepPalette.Muted,
                     modifier = Modifier
                         .padding(8.dp)
                         .size(20.dp)
@@ -249,8 +288,8 @@ private fun ChatTopBar(onBack: () -> Unit) {
 private fun AgentIntroCard() {
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -263,13 +302,13 @@ private fun AgentIntroCard() {
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .background(Color(0xFF6C8CFF).copy(alpha = 0.14f), RoundedCornerShape(16.dp)),
+                    .background(SleepPalette.Primary.copy(alpha = 0.14f), RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Default.SmartToy,
                     contentDescription = null,
-                    tint = Color(0xFF6C8CFF),
+                    tint = SleepPalette.Primary,
                     modifier = Modifier.size(26.dp)
                 )
             }
@@ -278,12 +317,12 @@ private fun AgentIntroCard() {
                     "AI 睡眠管家",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.82f)
+                    color = SleepPalette.Ink
                 )
                 Text(
-                    "分析睡眠数据，调整睡前计划，陪你慢慢改善。",
+                    "查看实际记录，整理睡前计划草案。",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.48f)
+                    color = SleepPalette.Muted
                 )
             }
         }
@@ -297,17 +336,17 @@ private fun QuickQuestionSection(
     onQuestionClick: (String) -> Unit
 ) {
     val questions = listOf(
-        "昨晚为什么睡得浅？",
-        "今晚怎么更快入睡？",
-        "帮我调整睡前计划",
-        "最近有没有变好？"
+        "查看近期睡眠记录",
+        "查看入睡用时",
+        "生成今晚睡前计划",
+        "查看夜间觉醒次数"
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             "试试这些",
             style = MaterialTheme.typography.labelSmall,
-            color = Color.White.copy(alpha = 0.35f)
+            color = SleepPalette.Subtle
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -317,14 +356,14 @@ private fun QuickQuestionSection(
                 Surface(
                     onClick = { onQuestionClick(question) },
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF6C8CFF).copy(alpha = 0.08f),
-                    border = BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.12f)),
+                    color = SleepPalette.Primary.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, SleepPalette.Primary.copy(alpha = 0.12f)),
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
                         question,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF6C8CFF).copy(alpha = 0.72f),
+                        color = SleepPalette.Primary.copy(alpha = 0.72f),
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
                         maxLines = 2
                     )
@@ -346,13 +385,13 @@ private fun AgentMessageBubble(text: String) {
     ) {
         Surface(
             shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
-            color = Color.White.copy(alpha = 0.08f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f))
+            color = SleepPalette.Card,
+            border = BorderStroke(1.dp, SleepPalette.Border)
         ) {
             Text(
                 text,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.84f),
+                color = SleepPalette.Ink,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
             )
         }
@@ -367,14 +406,14 @@ private fun UserMessageBubble(text: String) {
     ) {
         Surface(
             shape = RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp),
-            color = Color(0xFF6C8CFF).copy(alpha = 0.20f),
-            border = BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.16f)),
+            color = SleepPalette.Primary.copy(alpha = 0.20f),
+            border = BorderStroke(1.dp, SleepPalette.Primary.copy(alpha = 0.16f)),
             modifier = Modifier.fillMaxWidth(0.88f)
         ) {
             Text(
                 text,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.92f),
+                color = SleepPalette.Ink,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
             )
         }
@@ -386,11 +425,12 @@ private fun UserMessageBubble(text: String) {
 @Composable
 private fun ChatInputBar(
     inputText: String,
+    enabled: Boolean,
     onInputTextChange: (String) -> Unit,
     onSend: () -> Unit
 ) {
     Surface(
-        color = Color(0xFF0B1020).copy(alpha = 0.95f),
+        color = SleepPalette.BackgroundMiddle.copy(alpha = 0.95f),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -409,53 +449,39 @@ private fun ChatInputBar(
                     Text(
                         "问问睡眠管家...",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.30f)
+                        color = SleepPalette.Subtle
                     )
                 },
                 singleLine = true,
                 shape = RoundedCornerShape(20.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color.White.copy(alpha = 0.12f),
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.08f),
-                    focusedTextColor = Color.White.copy(alpha = 0.88f),
-                    unfocusedTextColor = Color.White.copy(alpha = 0.80f),
-                    cursorColor = Color(0xFF6C8CFF),
-                    focusedContainerColor = Color.White.copy(alpha = 0.04f),
-                    unfocusedContainerColor = Color.White.copy(alpha = 0.04f)
+                    focusedBorderColor = SleepPalette.Card,
+                    unfocusedBorderColor = SleepPalette.Card,
+                    focusedTextColor = SleepPalette.Ink,
+                    unfocusedTextColor = SleepPalette.Ink,
+                    cursorColor = SleepPalette.Primary,
+                    focusedContainerColor = SleepPalette.Card,
+                    unfocusedContainerColor = SleepPalette.Card
                 )
             )
 
             Surface(
                 onClick = onSend,
+                enabled = enabled && inputText.isNotBlank(),
                 shape = CircleShape,
-                color = if (inputText.isNotBlank()) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.08f),
+                color = if (enabled && inputText.isNotBlank()) SleepPalette.Primary else SleepPalette.Card,
                 modifier = Modifier.size(44.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.AutoMirrored.Filled.Send,
                         contentDescription = "发送",
-                        tint = if (inputText.isNotBlank()) Color.White else Color.White.copy(alpha = 0.36f),
+                        tint = if (enabled && inputText.isNotBlank()) Color.White else SleepPalette.Subtle,
                         modifier = Modifier.size(20.dp)
                     )
                 }
             }
         }
-    }
-}
-
-// ── Mock Reply Logic ──
-
-private fun generateMockAgentReply(question: String): String {
-    return when {
-        question.contains("浅") -> "昨晚后半夜浅睡偏多，可能和睡前刺激、作息波动或夜间短醒有关。偶尔一晚睡得浅不用太担心，今晚建议提前 20 分钟进入放松流程。"
-        question.contains("入睡") -> "今晚可以先做 8 分钟呼吸放松，并在 23:00 后减少手机使用。目标不是强迫自己马上睡着，而是让身体慢慢进入睡眠状态。"
-        question.contains("计划") -> "我建议今晚保持当前睡前计划：23:00 放下手机，23:10 呼吸放松，23:30 前关灯。先稳定执行，不要增加太多任务，稳定比完美更重要。"
-        question.contains("变好") -> "最近你的入睡时间有下降趋势，说明睡前放松可能在起作用。继续保持 3 到 5 晚，让身体适应这个节奏，我会持续帮你关注变化。"
-        question.contains("困") || question.contains("累") -> "昨晚睡得还可以，但后半夜有几段浅睡增多，可能影响了恢复质量。今晚不用刻意早睡，继续保持睡前放松流程就好。偶尔的疲惫是正常的，不用太焦虑。"
-        question.contains("醒") -> "半夜醒来其实很常见，不用强迫自己立刻睡着。可以试试：不要看手机，用腹式呼吸慢慢放松，如果 15 分钟还睡不着，起来坐一会儿再躺下。重要的是别给半夜醒来贴上焦虑的标签。"
-        question.contains("报告") -> "我看了你最近的睡眠数据，整体趋势在慢慢改善。入睡时间有下降，但后半夜的浅睡还比较零散。今晚的重点是稳定睡前放松流程，其他不用着急。"
-        else -> "我会结合你的睡眠记录和改善目标来帮你分析。你可以问问我有关入睡、睡眠质量、睡前计划或者长期改善的问题。"
     }
 }
 

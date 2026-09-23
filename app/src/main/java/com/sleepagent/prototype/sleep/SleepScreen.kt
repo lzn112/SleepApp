@@ -1,5 +1,7 @@
 package com.sleepagent.prototype.sleep
 
+import com.sleepagent.prototype.ui.theme.SleepPalette
+
 import android.Manifest
 import android.content.ComponentName
 import android.content.Context
@@ -775,12 +777,12 @@ private fun SleepSetupScreen(
                     "今晚睡眠方案",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.55f)
+                    color = SleepPalette.Muted
                 )
                 Surface(
                     shape = RoundedCornerShape(24.dp),
-                    color = Color.White.copy(alpha = 0.06f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                    color = SleepPalette.Card,
+                    border = BorderStroke(1.dp, SleepPalette.Border),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -856,7 +858,7 @@ private fun SleepSetupScreen(
                         "已发现设备",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White.copy(alpha = 0.55f)
+                        color = SleepPalette.Muted
                     )
                     scannedDevices.forEach { device ->
                         DeviceRow(
@@ -967,7 +969,7 @@ private fun InterventionRow(
         Icon(
             icon,
             contentDescription = null,
-            tint = if (enabled) Color(0xFF6C8CFF).copy(alpha = 0.80f) else Color.White.copy(alpha = 0.28f),
+            tint = if (enabled) SleepPalette.Primary.copy(alpha = 0.80f) else SleepPalette.Subtle,
             modifier = Modifier.size(22.dp)
         )
         Spacer(modifier = Modifier.width(14.dp))
@@ -979,18 +981,18 @@ private fun InterventionRow(
                 title,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                color = Color.White.copy(alpha = 0.78f)
+                color = SleepPalette.Ink
             )
             Text(
                 summary,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = if (enabled) 0.50f else 0.30f)
+                color = if (enabled) SleepPalette.Muted else SleepPalette.Subtle
             )
         }
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.28f),
+            tint = SleepPalette.Subtle,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -1003,7 +1005,7 @@ private fun DividerLine() {
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .height(1.dp)
-            .background(Color.White.copy(alpha = 0.05f))
+            .background(SleepPalette.Card)
     )
 }
 
@@ -1097,15 +1099,15 @@ private fun SleepMonitorScreen(
             Surface(
                 onClick = onBack,
                 shape = RoundedCornerShape(16.dp),
-                color = Color.White.copy(alpha = 0.06f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                color = SleepPalette.Card,
+                border = BorderStroke(1.dp, SleepPalette.Border),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     "退出睡眠阶段",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.48f),
+                    color = SleepPalette.Muted,
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
                 )
             }
@@ -1223,8 +1225,8 @@ private fun SleepPrepareHeroCard(
     val isReady = connectionState == DeviceConnectionState.CONNECTED
     Surface(
         shape = RoundedCornerShape(32.dp),
-        color = Color.White.copy(alpha = 0.08f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -1240,26 +1242,26 @@ private fun SleepPrepareHeroCard(
                     "今晚准备睡觉",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.94f)
+                    color = SleepPalette.Ink
                 )
                 StatusBadge(
                     text = if (isReady) "设备就绪" else "待连接",
-                    color = if (isReady) Color(0xFF2FCBBC) else Color.White.copy(alpha = 0.40f)
+                    color = if (isReady) SleepPalette.Success else SleepPalette.Subtle
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("预计入睡", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.38f))
-                    Text(plan.bedtime, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.90f))
+                    Text("预计入睡", style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
+                    Text(plan.bedtime, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SleepPalette.Ink)
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("目标起床", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.38f))
-                    Text(plan.wakeTime, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.90f))
+                    Text("目标起床", style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
+                    Text(plan.wakeTime, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SleepPalette.Ink)
                 }
                 if (plan.smartWakeEnabled) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("智能唤醒", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.38f))
-                        Text("${plan.smartWakeStart}-${plan.smartWakeEnd}", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF6C8CFF))
+                        Text("智能唤醒", style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
+                        Text("${plan.smartWakeStart}-${plan.smartWakeEnd}", style = MaterialTheme.typography.bodyMedium, color = SleepPalette.Primary)
                     }
                 }
             }
@@ -1279,7 +1281,7 @@ private fun SleepPrepareHeroCard(
                         Text(
                             item,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.44f)
+                            color = SleepPalette.Subtle
                         )
                     }
                 }
@@ -1290,10 +1292,10 @@ private fun SleepPrepareHeroCard(
                 enabled = isReady && !isStartingSleep,
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF6C8CFF),
+                    containerColor = SleepPalette.Primary,
                     contentColor = Color.White,
-                    disabledContainerColor = Color.White.copy(alpha = 0.08f),
-                    disabledContentColor = Color.White.copy(alpha = 0.30f)
+                    disabledContainerColor = SleepPalette.Card,
+                    disabledContentColor = SleepPalette.Subtle
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -1322,8 +1324,8 @@ private fun SleepTimePlanCard(
 ) {
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -1334,7 +1336,7 @@ private fun SleepTimePlanCard(
                 "今晚时间",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.72f)
+                color = SleepPalette.Ink
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1387,14 +1389,14 @@ private fun SleepTimePlanCard(
                             onPlanChange(plan.copy(bedtime = adjusted))
                         },
                         shape = RoundedCornerShape(12.dp),
-                        color = if (isActive) Color(0xFF6C8CFF).copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f),
-                        border = if (isActive) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null
+                        color = if (isActive) SleepPalette.Primary.copy(alpha = 0.15f) else SleepPalette.Card,
+                        border = if (isActive) BorderStroke(1.dp, SleepPalette.Primary.copy(alpha = 0.30f)) else null
                     ) {
                         Text(
                             label,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (isActive) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
+                            color = if (isActive) SleepPalette.Primary else SleepPalette.Subtle,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
                     }
@@ -1403,7 +1405,7 @@ private fun SleepTimePlanCard(
             Text(
                 "预计睡眠约 8 小时",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.34f)
+                color = SleepPalette.Subtle
             )
         }
     }
@@ -1421,13 +1423,13 @@ private fun TimeAdjustColumn(
             Surface(
                 onClick = onMinus,
                 shape = RoundedCornerShape(8.dp),
-                color = Color.White.copy(alpha = 0.08f)
+                color = SleepPalette.Card
             ) {
                 Text(
                     "-15",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.55f),
+                    color = SleepPalette.Muted,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
@@ -1435,23 +1437,23 @@ private fun TimeAdjustColumn(
                 time,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.90f)
+                color = SleepPalette.Ink
             )
             Surface(
                 onClick = onPlus,
                 shape = RoundedCornerShape(8.dp),
-                color = Color.White.copy(alpha = 0.08f)
+                color = SleepPalette.Card
             ) {
                 Text(
                     "+15",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.55f),
+                    color = SleepPalette.Muted,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
         }
-        Text(label, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.38f))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
     }
 }
 
@@ -1499,14 +1501,14 @@ private fun ElectricalStimulationSheet(
                     Surface(
                         onClick = { mode = m },
                         shape = RoundedCornerShape(10.dp),
-                        color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
-                        border = if (selected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null
+                        color = if (selected) SleepPalette.Primary.copy(alpha = 0.18f) else SleepPalette.Card,
+                        border = if (selected) BorderStroke(1.dp, SleepPalette.Primary.copy(alpha = 0.30f)) else null
                     ) {
                         Text(
                             m.label,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
+                            color = if (selected) SleepPalette.Primary else SleepPalette.Subtle,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
@@ -1525,8 +1527,8 @@ private fun ElectricalStimulationSheet(
                     Surface(
                         onClick = { level = lvl.level },
                         shape = RoundedCornerShape(10.dp),
-                        color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
-                        border = if (selected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null,
+                        color = if (selected) SleepPalette.Primary.copy(alpha = 0.18f) else SleepPalette.Card,
+                        border = if (selected) BorderStroke(1.dp, SleepPalette.Primary.copy(alpha = 0.30f)) else null,
                         modifier = Modifier.weight(1f)
                     ) {
                         Column(
@@ -1537,12 +1539,12 @@ private fun ElectricalStimulationSheet(
                                 "档${lvl.level}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f)
+                                color = if (selected) SleepPalette.Primary else SleepPalette.Subtle
                             )
                             Text(
                                 lvl.displayName,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.70f) else Color.White.copy(alpha = 0.28f)
+                                color = if (selected) SleepPalette.Primary.copy(alpha = 0.70f) else SleepPalette.Subtle
                             )
                         }
                     }
@@ -1557,14 +1559,14 @@ private fun ElectricalStimulationSheet(
                     Surface(
                         onClick = { durationMin = mins },
                         shape = RoundedCornerShape(10.dp),
-                        color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
-                        border = if (selected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null
+                        color = if (selected) SleepPalette.Primary.copy(alpha = 0.18f) else SleepPalette.Card,
+                        border = if (selected) BorderStroke(1.dp, SleepPalette.Primary.copy(alpha = 0.30f)) else null
                     ) {
                         Text(
                             "${mins}分钟",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
+                            color = if (selected) SleepPalette.Primary else SleepPalette.Subtle,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
                     }
@@ -1587,14 +1589,14 @@ private fun ElectricalStimulationSheet(
                         )
                     },
                     shape = RoundedCornerShape(14.dp),
-                    color = Color.White.copy(alpha = 0.08f),
+                    color = SleepPalette.Card,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
                         "关闭微电",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Medium,
-                        color = Color.White.copy(alpha = 0.50f),
+                        color = SleepPalette.Muted,
                         modifier = Modifier.padding(vertical = 10.dp).fillMaxWidth(),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
@@ -1610,7 +1612,7 @@ private fun ElectricalStimulationSheet(
                         ))
                     },
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C8CFF), contentColor = Color.White),
+                    colors = ButtonDefaults.buttonColors(containerColor = SleepPalette.Primary, contentColor = Color.White),
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("保存", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
@@ -1719,9 +1721,9 @@ private fun SoundInterventionSheet(
                     valueRange = 0.01f..0.50f,
                     modifier = Modifier.fillMaxWidth(),
                     colors = androidx.compose.material3.SliderDefaults.colors(
-                        thumbColor = Color(0xFF6C8CFF),
-                        activeTrackColor = Color(0xFF6C8CFF),
-                        inactiveTrackColor = Color.White.copy(alpha = 0.10f)
+                        thumbColor = SleepPalette.Primary,
+                        activeTrackColor = SleepPalette.Primary,
+                        inactiveTrackColor = SleepPalette.Card
                     )
                 )
             }
@@ -1735,15 +1737,15 @@ private fun SoundInterventionSheet(
                         Surface(
                             onClick = { durationMin = mins },
                             shape = RoundedCornerShape(10.dp),
-                            color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
-                            border = if (selected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null,
+                            color = if (selected) SleepPalette.Primary.copy(alpha = 0.18f) else SleepPalette.Card,
+                            border = if (selected) BorderStroke(1.dp, SleepPalette.Primary.copy(alpha = 0.30f)) else null,
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
                                 "${mins}分钟",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
+                                color = if (selected) SleepPalette.Primary else SleepPalette.Subtle,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
@@ -1760,7 +1762,7 @@ private fun SoundInterventionSheet(
                     Surface(
                         onClick = { stopMode = sm },
                         shape = RoundedCornerShape(10.dp),
-                        color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.12f) else Color.Transparent,
+                        color = if (selected) SleepPalette.Primary.copy(alpha = 0.12f) else Color.Transparent,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -1771,7 +1773,7 @@ private fun SoundInterventionSheet(
                                 sm.label,
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.50f)
+                                color = if (selected) SleepPalette.Primary else SleepPalette.Muted
                             )
                         }
                     }
@@ -1785,7 +1787,7 @@ private fun SoundInterventionSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
-                        .background(Color.White.copy(alpha = 0.08f))
+                        .background(SleepPalette.Card)
                 )
             }
 
@@ -1795,12 +1797,12 @@ private fun SoundInterventionSheet(
                     "阿尔法入睡干预（实验功能）",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.80f)
+                    color = SleepPalette.Ink
                 )
                 Text(
                     "根据实时脑电状态，在入睡阶段叠加轻微短声音。",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.40f)
+                    color = SleepPalette.Subtle
                 )
             }
             item {
@@ -1817,7 +1819,7 @@ private fun SoundInterventionSheet(
                         colors = androidx.compose.material3.SliderDefaults.colors(
                             thumbColor = Color(0xFF8AB4F8),
                             activeTrackColor = Color(0xFF8AB4F8),
-                            inactiveTrackColor = Color.White.copy(alpha = 0.10f)
+                            inactiveTrackColor = SleepPalette.Card
                         )
                     )
                 }
@@ -1832,7 +1834,7 @@ private fun SoundInterventionSheet(
                         colors = androidx.compose.material3.SliderDefaults.colors(
                             thumbColor = Color(0xFF8AB4F8),
                             activeTrackColor = Color(0xFF8AB4F8),
-                            inactiveTrackColor = Color.White.copy(alpha = 0.10f)
+                            inactiveTrackColor = SleepPalette.Card
                         )
                     )
                 }
@@ -1853,7 +1855,7 @@ private fun SoundInterventionSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
-                        .background(Color.White.copy(alpha = 0.08f))
+                        .background(SleepPalette.Card)
                 )
             }
 
@@ -1863,12 +1865,12 @@ private fun SoundInterventionSheet(
                     "深睡声音",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.80f)
+                    color = SleepPalette.Ink
                 )
                 Text(
                     "检测到稳定深睡后，播放轻微短声音。",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.40f)
+                    color = SleepPalette.Subtle
                 )
             }
             item {
@@ -1885,7 +1887,7 @@ private fun SoundInterventionSheet(
                         colors = androidx.compose.material3.SliderDefaults.colors(
                             thumbColor = Color(0xFF7B8CDE),
                             activeTrackColor = Color(0xFF7B8CDE),
-                            inactiveTrackColor = Color.White.copy(alpha = 0.10f)
+                            inactiveTrackColor = SleepPalette.Card
                         )
                     )
                 }
@@ -1919,7 +1921,7 @@ private fun SoundInterventionSheet(
                     Text(
                         message,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.52f)
+                        color = SleepPalette.Muted
                     )
                 }
             }
@@ -1929,14 +1931,14 @@ private fun SoundInterventionSheet(
                     Surface(
                         onClick = onDismiss,
                         shape = RoundedCornerShape(14.dp),
-                        color = Color.White.copy(alpha = 0.08f),
+                        color = SleepPalette.Card,
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
                             "取消",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Medium,
-                            color = Color.White.copy(alpha = 0.50f),
+                            color = SleepPalette.Muted,
                             modifier = Modifier.padding(vertical = 10.dp).fillMaxWidth(),
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
@@ -1958,7 +1960,7 @@ private fun SoundInterventionSheet(
                             ))
                         },
                         shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C8CFF), contentColor = Color.White),
+                        colors = ButtonDefaults.buttonColors(containerColor = SleepPalette.Primary, contentColor = Color.White),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("保存", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
@@ -2005,15 +2007,15 @@ private fun SoundChip(label: String, selected: Boolean, onClick: () -> Unit, mod
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(10.dp),
-        color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
-        border = if (selected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null,
+        color = if (selected) SleepPalette.Primary.copy(alpha = 0.18f) else SleepPalette.Card,
+        border = if (selected) BorderStroke(1.dp, SleepPalette.Primary.copy(alpha = 0.30f)) else null,
         modifier = modifier
     ) {
         Text(
             label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
+            color = if (selected) SleepPalette.Primary else SleepPalette.Subtle,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             softWrap = false
@@ -2061,7 +2063,7 @@ private fun SmartWakeSheet(
                 Text(
                     "启用智能唤醒",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.62f)
+                    color = SleepPalette.Muted
                 )
                 ToggleSwitch(enabled) { enabled = it }
             }
@@ -2070,7 +2072,7 @@ private fun SmartWakeSheet(
                 Text(
                     "在 ${startTime} - ${endTime} 之间，尽量选择更轻松的时机唤醒。最晚会在 ${endTime} 准时唤醒。",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.48f)
+                    color = SleepPalette.Muted
                 )
 
                 GroupLabel("唤醒窗口")
@@ -2082,14 +2084,14 @@ private fun SmartWakeSheet(
                                 startTime = adjustTime(endTime, -mins)
                             },
                             shape = RoundedCornerShape(10.dp),
-                            color = if (selected) Color(0xFF6C8CFF).copy(alpha = 0.18f) else Color.White.copy(alpha = 0.05f),
-                            border = if (selected) BorderStroke(1.dp, Color(0xFF6C8CFF).copy(alpha = 0.30f)) else null
+                            color = if (selected) SleepPalette.Primary.copy(alpha = 0.18f) else SleepPalette.Card,
+                            border = if (selected) BorderStroke(1.dp, SleepPalette.Primary.copy(alpha = 0.30f)) else null
                         ) {
                             Text(
                                 "${mins}分钟",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (selected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.44f),
+                                color = if (selected) SleepPalette.Primary else SleepPalette.Subtle,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                             )
                         }
@@ -2098,7 +2100,7 @@ private fun SmartWakeSheet(
                 Text(
                     "唤醒窗口：${startTime} - ${endTime}   |   最晚唤醒：${endTime}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.30f)
+                    color = SleepPalette.Subtle
                 )
 
                 GroupLabel("唤醒声音")
@@ -2107,16 +2109,16 @@ private fun SmartWakeSheet(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("柔和唤醒声", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.50f))
-                    Text("晨间鸟鸣", style = MaterialTheme.typography.bodySmall, color = Color(0xFF6C8CFF))
+                    Text("柔和唤醒声", style = MaterialTheme.typography.bodySmall, color = SleepPalette.Muted)
+                    Text("晨间鸟鸣", style = MaterialTheme.typography.bodySmall, color = SleepPalette.Primary)
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("兜底铃声", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.50f))
-                    Text("柔和铃音", style = MaterialTheme.typography.bodySmall, color = Color(0xFF6C8CFF))
+                    Text("兜底铃声", style = MaterialTheme.typography.bodySmall, color = SleepPalette.Muted)
+                    Text("柔和铃音", style = MaterialTheme.typography.bodySmall, color = SleepPalette.Primary)
                 }
 
                 ToggleRow("同步震动", vibrationEnabled) { vibrationEnabled = it }
@@ -2127,14 +2129,14 @@ private fun SmartWakeSheet(
                 Surface(
                     onClick = onDismiss,
                     shape = RoundedCornerShape(14.dp),
-                    color = Color.White.copy(alpha = 0.08f),
+                    color = SleepPalette.Card,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
                         "取消",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Medium,
-                        color = Color.White.copy(alpha = 0.50f),
+                        color = SleepPalette.Muted,
                         modifier = Modifier.padding(vertical = 10.dp).fillMaxWidth(),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
@@ -2148,7 +2150,7 @@ private fun SmartWakeSheet(
                         ))
                     },
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C8CFF), contentColor = Color.White),
+                    colors = ButtonDefaults.buttonColors(containerColor = SleepPalette.Primary, contentColor = Color.White),
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("保存", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
@@ -2170,11 +2172,11 @@ private fun SheetHeader(title: String, onDismiss: () -> Unit) {
             title,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
-            color = Color.White.copy(alpha = 0.94f)
+            color = SleepPalette.Ink
         )
         Spacer(modifier = Modifier.weight(1f))
         IconButton(onClick = onDismiss) {
-            Icon(Icons.Default.Close, contentDescription = "关闭", tint = Color.White.copy(alpha = 0.50f))
+            Icon(Icons.Default.Close, contentDescription = "关闭", tint = SleepPalette.Muted)
         }
     }
 }
@@ -2185,7 +2187,7 @@ private fun GroupLabel(text: String) {
         text,
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.SemiBold,
-        color = Color.White.copy(alpha = 0.44f)
+        color = SleepPalette.Subtle
     )
 }
 
@@ -2199,7 +2201,7 @@ private fun ToggleRow(label: String, checked: Boolean, onToggle: (Boolean) -> Un
         Text(
             label,
             style = MaterialTheme.typography.bodySmall,
-            color = Color.White.copy(alpha = 0.50f)
+            color = SleepPalette.Muted
         )
         ToggleSwitch(checked, onToggle)
     }
@@ -2210,13 +2212,13 @@ private fun ToggleSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Surface(
         onClick = { onCheckedChange(!checked) },
         shape = RoundedCornerShape(12.dp),
-        color = if (checked) Color(0xFF6C8CFF).copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f)
+        color = if (checked) SleepPalette.Primary.copy(alpha = 0.20f) else SleepPalette.Card
     ) {
         Text(
             if (checked) "开启" else "关闭",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Medium,
-            color = if (checked) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.40f),
+            color = if (checked) SleepPalette.Primary else SleepPalette.Subtle,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
         )
     }
@@ -2227,7 +2229,7 @@ private fun TextButton(text: String, onClick: () -> Unit) {
     Text(
         text,
         style = MaterialTheme.typography.bodySmall,
-        color = Color(0xFF6C8CFF).copy(alpha = 0.70f),
+        color = SleepPalette.Primary.copy(alpha = 0.70f),
         modifier = Modifier
             .clickable(onClick = onClick)
             .padding(vertical = 2.dp)
@@ -2262,8 +2264,8 @@ private fun DeviceReadinessCard(
     val deviceName = connectedDeviceName ?: selectedDeviceName
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.10f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -2279,11 +2281,11 @@ private fun DeviceReadinessCard(
                     "设备准备",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.72f)
+                    color = SleepPalette.Ink
                 )
                 StatusBadge(
                     text = if (isConnected) "已连接" else "未连接",
-                    color = if (isConnected) Color(0xFF6C8CFF) else Color.White.copy(alpha = 0.30f)
+                    color = if (isConnected) SleepPalette.Primary else SleepPalette.Subtle
                 )
             }
 
@@ -2292,24 +2294,24 @@ private fun DeviceReadinessCard(
                     "$deviceName 已连接",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.94f)
+                    color = SleepPalette.Ink
                 )
                 Text(
                     "信号准备中，今晚可以开始监测。",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.55f)
+                    color = SleepPalette.Muted
                 )
             } else {
                 Text(
                     "头环未连接",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.94f)
+                    color = SleepPalette.Ink
                 )
                 Text(
                     "睡前请先连接设备，确保整晚监测稳定。",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.55f)
+                    color = SleepPalette.Muted
                 )
             }
 
@@ -2319,7 +2321,7 @@ private fun DeviceReadinessCard(
                         onClick = onScan,
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF6C8CFF),
+                            containerColor = SleepPalette.Primary,
                             contentColor = Color.White
                         )
                     ) {
@@ -2334,7 +2336,7 @@ private fun DeviceReadinessCard(
                         onClick = onRequestPermissions,
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFFF6B6B),
+                            containerColor = SleepPalette.Error,
                             contentColor = Color.White
                         )
                     ) {
@@ -2345,13 +2347,13 @@ private fun DeviceReadinessCard(
                     Surface(
                         onClick = onDisconnect,
                         shape = RoundedCornerShape(16.dp),
-                        color = Color.White.copy(alpha = 0.06f)
+                        color = SleepPalette.Card
                     ) {
                         Text(
                             "断开设备",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Medium,
-                            color = Color.White.copy(alpha = 0.50f),
+                            color = SleepPalette.Muted,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                         )
                     }
@@ -2362,7 +2364,7 @@ private fun DeviceReadinessCard(
                 Text(
                     it,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.40f)
+                    color = SleepPalette.Subtle
                 )
             }
         }
@@ -2382,8 +2384,8 @@ private fun AdvancedDebugSection(
 
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -2402,19 +2404,19 @@ private fun AdvancedDebugSection(
                         "高级模式",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White.copy(alpha = 0.38f)
+                        color = SleepPalette.Subtle
                     )
                     Text(
                         "数据源与连接诊断默认收起",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.26f)
+                        color = SleepPalette.Subtle
                     )
                 }
                 Text(
                     if (expanded) "收起" else "展开",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.40f)
+                    color = SleepPalette.Subtle
                 )
             }
 
@@ -2435,28 +2437,28 @@ private fun AdvancedDebugSection(
                     Text(
                         "连接诊断: ${connectionDiagnostics.joinToString(" · ")}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.26f)
+                        color = SleepPalette.Subtle
                     )
                 }
                 if (scanDiagnostics.isNotEmpty()) {
                     Text(
                         "扫描诊断: ${scanDiagnostics.joinToString(" · ")}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.26f)
+                        color = SleepPalette.Subtle
                     )
                 }
                 if (lastConnectionError != null) {
                     Text(
                         "连接错误: $lastConnectionError",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFFFF6B6B).copy(alpha = 0.50f)
+                        color = SleepPalette.Error.copy(alpha = 0.50f)
                     )
                 }
                 if (lastScanError != null) {
                     Text(
                         "扫描错误: $lastScanError",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFFFF6B6B).copy(alpha = 0.50f)
+                        color = SleepPalette.Error.copy(alpha = 0.50f)
                     )
                 }
             }
@@ -2475,8 +2477,8 @@ private fun SleepGuardHeroCard(
     val isStable = connectionState == DeviceConnectionState.CONNECTED
     Surface(
         shape = RoundedCornerShape(32.dp),
-        color = Color.White.copy(alpha = 0.08f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -2490,7 +2492,7 @@ private fun SleepGuardHeroCard(
             ) {
                 StatusBadge(
                     text = if (isStable) "连接稳定" else "连接异常",
-                    color = if (isStable) Color(0xFF6C8CFF) else Color(0xFFFF6B6B)
+                    color = if (isStable) SleepPalette.Primary else SleepPalette.Error
                 )
             }
 
@@ -2498,19 +2500,19 @@ private fun SleepGuardHeroCard(
                 if (isStable) "监测已开启，明早为你生成睡眠复盘。"
                 else "设备连接异常，正在尝试恢复...",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.62f)
+                color = SleepPalette.Muted
             )
 
             statusMessage?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.44f))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = SleepPalette.Subtle)
             }
 
             Button(
                 onClick = onEndSleep,
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFFF6B6B).copy(alpha = 0.12f),
-                    contentColor = Color(0xFFFF6B6B)
+                    containerColor = SleepPalette.Error.copy(alpha = 0.12f),
+                    contentColor = SleepPalette.Error
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -2538,8 +2540,8 @@ private fun MonitoringInterventionPanel(
 ) {
     Surface(
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -2547,7 +2549,7 @@ private fun MonitoringInterventionPanel(
                 "今晚方案",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White.copy(alpha = 0.55f),
+                color = SleepPalette.Muted,
                 modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 4.dp)
             )
             // Sound
@@ -2614,10 +2616,10 @@ private fun MonitoringInterventionRow(
     onClick: () -> Unit
 ) {
     val stateDotColor = when (runState) {
-        InterventionRunState.RUNNING -> Color(0xFF2FCBBC)
-        InterventionRunState.PAUSED -> Color(0xFFFFC857)
+        InterventionRunState.RUNNING -> SleepPalette.Success
+        InterventionRunState.PAUSED -> SleepPalette.Warning
         InterventionRunState.SWITCHING, InterventionRunState.PREPARING -> Color(0xFFFF9F43)
-        InterventionRunState.ERROR -> Color(0xFFFF6B6B)
+        InterventionRunState.ERROR -> SleepPalette.Error
         else -> Color.Transparent
     }
     Row(
@@ -2631,7 +2633,7 @@ private fun MonitoringInterventionRow(
             Icon(
                 icon,
                 contentDescription = null,
-                tint = if (runState == InterventionRunState.DISABLED) Color.White.copy(alpha = 0.28f) else Color(0xFF6C8CFF).copy(alpha = 0.80f),
+                tint = if (runState == InterventionRunState.DISABLED) SleepPalette.Subtle else SleepPalette.Primary.copy(alpha = 0.80f),
                 modifier = Modifier.size(20.dp)
             )
             if (stateDotColor != Color.Transparent) {
@@ -2653,7 +2655,7 @@ private fun MonitoringInterventionRow(
                 title,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                color = Color.White.copy(alpha = 0.78f)
+                color = SleepPalette.Ink
             )
             Text(
                 summary,
@@ -2664,7 +2666,7 @@ private fun MonitoringInterventionRow(
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.28f),
+            tint = SleepPalette.Subtle,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -2679,8 +2681,8 @@ private fun SleepStageStrip(snapshot: SleepStageSnapshot) {
 
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -2694,13 +2696,13 @@ private fun SleepStageStrip(snapshot: SleepStageSnapshot) {
                 Text(
                     "当前睡眠状态",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.40f)
+                    color = SleepPalette.Subtle
                 )
                 Text(
                     "$stageLabel 中",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF6C8CFF)
+                    color = SleepPalette.Primary
                 )
             }
 
@@ -2711,7 +2713,7 @@ private fun SleepStageStrip(snapshot: SleepStageSnapshot) {
                             modifier = Modifier
                                 .size(6.dp)
                                 .background(
-                                    Color(0xFF6C8CFF).copy(alpha = 0.35f),
+                                    SleepPalette.Primary.copy(alpha = 0.35f),
                                     CircleShape
                                 )
                         )
@@ -2734,8 +2736,8 @@ private fun CollapsibleSignalCard(
 ) {
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
@@ -2752,19 +2754,19 @@ private fun CollapsibleSignalCard(
                         title,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White.copy(alpha = 0.62f)
+                        color = SleepPalette.Muted
                     )
                     Text(
                         subtitle,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.38f)
+                        color = SleepPalette.Subtle
                     )
                 }
                 Text(
                     if (expanded) "收起" else "展开",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF6C8CFF).copy(alpha = 0.70f)
+                    color = SleepPalette.Primary.copy(alpha = 0.70f)
                 )
             }
             if (expanded) {
@@ -2794,12 +2796,12 @@ private fun AdvancedSignalCardsSection(
             "高级信号",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.44f)
+            color = SleepPalette.Subtle
         )
         Text(
             "仅在需要查看原始信号时展开",
             style = MaterialTheme.typography.labelSmall,
-            color = Color.White.copy(alpha = 0.30f)
+            color = SleepPalette.Subtle
         )
 
         CollapsibleSignalCard(
@@ -2811,7 +2813,7 @@ private fun AdvancedSignalCardsSection(
             SingleChannelWaveSection(
                 title = "EEG 波形",
                 points = signalSnapshot.eeg.rawSeries.ifEmpty { signalSnapshot.eeg.series },
-                lineColor = Color(0xFF6C8CFF),
+                lineColor = SleepPalette.Primary,
                 description = "100 Hz 原始波形"
             )
         }
@@ -2832,7 +2834,7 @@ private fun AdvancedSignalCardsSection(
                 Text(
                     "HRV 数据准备中，请先切换到 HRV 光学模式。",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.36f)
+                    color = SleepPalette.Subtle
                 )
             }
         }
@@ -2853,7 +2855,7 @@ private fun AdvancedSignalCardsSection(
                 Text(
                     "fNIRS 数据准备中，请先切换到 fNIRS 光学模式。",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.36f)
+                    color = SleepPalette.Subtle
                 )
             }
         }
@@ -2883,8 +2885,8 @@ private fun CollapsedDebugSection(
 
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        color = SleepPalette.Card,
+        border = BorderStroke(1.dp, SleepPalette.Border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
@@ -2901,19 +2903,19 @@ private fun CollapsedDebugSection(
                         "高级调试",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White.copy(alpha = 0.38f)
+                        color = SleepPalette.Subtle
                     )
                     Text(
                         "仅供调试与研究使用",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.26f)
+                        color = SleepPalette.Subtle
                     )
                 }
                 Text(
                     if (expanded) "收起" else "展开",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.40f)
+                    color = SleepPalette.Subtle
                 )
             }
 
@@ -2926,18 +2928,18 @@ private fun CollapsedDebugSection(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
-                        Text("会话: ${sessionId?.take(8) ?: "未生成"}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.30f))
-                        Text("数据包: $packetCount", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.30f))
+                        Text("会话: ${sessionId?.take(8) ?: "未生成"}", style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
+                        Text("数据包: $packetCount", style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
-                        Text("光学模式: ${opticalMode.label}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.30f))
+                        Text("光学模式: ${opticalMode.label}", style = MaterialTheme.typography.labelSmall, color = SleepPalette.Subtle)
                         Text(
                             if (tdcsState.active) "电刺激: 运行中" else "电刺激: 已停止",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.30f)
+                            color = SleepPalette.Subtle
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -2957,12 +2959,12 @@ private fun CollapsedDebugSection(
                         "研究者控制",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White.copy(alpha = 0.38f)
+                        color = SleepPalette.Subtle
                     )
                     Text(
                         "仅用于调试/研究，请确认参数后再操作。",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFFFF6B6B).copy(alpha = 0.45f)
+                        color = SleepPalette.Error.copy(alpha = 0.45f)
                     )
                     Text(
                         if (tdcsState.active) {
@@ -2971,10 +2973,10 @@ private fun CollapsedDebugSection(
                             "状态: 已停止"
                         },
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.32f)
+                        color = SleepPalette.Subtle
                     )
                     if (!tdcsInputMessage.isNullOrBlank()) {
-                        Text(tdcsInputMessage, style = MaterialTheme.typography.labelSmall, color = Color(0xFFFF6B6B))
+                        Text(tdcsInputMessage, style = MaterialTheme.typography.labelSmall, color = SleepPalette.Error)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
@@ -3010,28 +3012,28 @@ private fun CollapsedDebugSection(
                                 }
                             },
                             shape = RoundedCornerShape(16.dp),
-                            color = Color(0xFFFF6B6B).copy(alpha = 0.12f),
+                            color = SleepPalette.Error.copy(alpha = 0.12f),
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
                                 "开启",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFFFF6B6B),
+                                color = SleepPalette.Error,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                             )
                         }
                         Surface(
                             onClick = onStopTdcs,
                             shape = RoundedCornerShape(16.dp),
-                            color = Color.White.copy(alpha = 0.06f),
+                            color = SleepPalette.Card,
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
                                 "关闭",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Medium,
-                                color = Color.White.copy(alpha = 0.50f),
+                                color = SleepPalette.Muted,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                             )
                         }
@@ -3054,9 +3056,9 @@ private fun DeviceRow(
             .fillMaxWidth()
             .background(
                 color = when {
-                    connected -> Color(0xFF6C8CFF).copy(alpha = 0.16f)
-                    selected -> Color.White.copy(alpha = 0.10f)
-                    else -> Color.White.copy(alpha = 0.06f)
+                    connected -> SleepPalette.Primary.copy(alpha = 0.16f)
+                    selected -> SleepPalette.Card
+                    else -> SleepPalette.Card
                 },
                 shape = RoundedCornerShape(16.dp)
             )
@@ -3069,7 +3071,7 @@ private fun DeviceRow(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(device.name, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.94f))
+                Text(device.name, fontWeight = FontWeight.SemiBold, color = SleepPalette.Ink)
                 StatusBadge(
                     text = when {
                         connected -> "已连接"
@@ -3077,14 +3079,14 @@ private fun DeviceRow(
                         else -> "点击连接"
                     },
                     color = when {
-                        connected -> Color(0xFF6C8CFF)
-                        selected -> Color.White.copy(alpha = 0.50f)
-                        else -> Color.White.copy(alpha = 0.36f)
+                        connected -> SleepPalette.Primary
+                        selected -> SleepPalette.Muted
+                        else -> SleepPalette.Subtle
                     }
                 )
             }
-            Text("RSSI: ${device.rssi}", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.50f))
-            Text(device.address, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.38f))
+            Text("RSSI: ${device.rssi}", style = MaterialTheme.typography.bodySmall, color = SleepPalette.Muted)
+            Text(device.address, style = MaterialTheme.typography.bodySmall, color = SleepPalette.Subtle)
         }
     }
 }
@@ -3728,9 +3730,9 @@ private fun ScreenContainer(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF10172A),
-                        Color(0xFF0B1020),
-                        Color(0xFF070B16)
+                        SleepPalette.BackgroundTop,
+                        SleepPalette.BackgroundMiddle,
+                        SleepPalette.BackgroundBottom
                     )
                 )
             )

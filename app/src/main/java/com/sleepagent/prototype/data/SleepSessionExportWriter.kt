@@ -22,7 +22,7 @@ class SleepSessionExportWriter(
     private val context: Context,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
-    suspend fun exportSessionBundle(session: SleepSessionRecord): SleepSessionExportResult {
+    suspend fun exportSessionBundle(session: SleepSessionRecord, interventionCsv: String): SleepSessionExportResult {
         return withContext(ioDispatcher) {
             val rawFile = File(session.rawFilePath)
             require(rawFile.exists()) {
@@ -30,16 +30,17 @@ class SleepSessionExportWriter(
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                exportToDownloads(session, rawFile)
+                exportToDownloads(session, rawFile, interventionCsv)
             } else {
-                exportToAppExternal(session, rawFile)
+                exportToAppExternal(session, rawFile, interventionCsv)
             }
         }
     }
 
     private fun exportToDownloads(
         session: SleepSessionRecord,
-        rawFile: File
+        rawFile: File,
+        interventionCsv: String
     ): SleepSessionExportResult {
         val displayName = buildExportFileName(session.sessionId)
         val resolver = context.contentResolver
@@ -58,7 +59,7 @@ class SleepSessionExportWriter(
 
         try {
             resolver.openOutputStream(uri)?.use { output ->
-                writeBundleZip(output, session, rawFile)
+                writeBundleZip(output, session, rawFile, interventionCsv)
             } ?: error("Failed to open export output stream")
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -81,7 +82,8 @@ class SleepSessionExportWriter(
 
     private fun exportToAppExternal(
         session: SleepSessionRecord,
-        rawFile: File
+        rawFile: File,
+        interventionCsv: String
     ): SleepSessionExportResult {
         val exportDir = File(
             requireNotNull(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)),
@@ -91,7 +93,7 @@ class SleepSessionExportWriter(
         val displayName = buildExportFileName(session.sessionId)
         val exportFile = File(exportDir, displayName)
         exportFile.outputStream().use { output ->
-            writeBundleZip(output, session, rawFile)
+            writeBundleZip(output, session, rawFile, interventionCsv)
         }
         return SleepSessionExportResult(
             fileName = displayName,
@@ -103,37 +105,18 @@ class SleepSessionExportWriter(
     private fun writeBundleZip(
         outputStream: OutputStream,
         session: SleepSessionRecord,
-        rawFile: File
+        rawFile: File,
+        interventionCsv: String
     ) {
-        ZipOutputStream(BufferedOutputStream(outputStream)).use { zip ->
-            putZipTextEntry(
-                zip = zip,
-                entryName = "manifest.json",
-                content = buildManifest(session)
-            )
-
-            zip.putNextEntry(ZipEntry(SleepSessionCsvWriter.RAW_CSV_FILE_NAME))
-            BufferedInputStream(rawFile.inputStream()).use { input ->
-                input.copyTo(zip)
-            }
-            zip.closeEntry()
-        }
-    }
-
-    private fun putZipTextEntry(
-        zip: ZipOutputStream,
-        entryName: String,
-        content: String
-    ) {
-        zip.putNextEntry(ZipEntry(entryName))
-        zip.write(content.toByteArray(StandardCharsets.UTF_8))
-        zip.closeEntry()
+        writeSleepSessionBundle(outputStream, buildManifest(session), rawFile, interventionCsv)
     }
 
     private fun buildManifest(session: SleepSessionRecord): String {
         val exportedAt = System.currentTimeMillis()
         return JSONObject().apply {
-            put("schema_version", 1)
+            put("schema_version", 2)
+            put("stimulation_events_file", "stimulation_events.csv")
+            put("stimulation_log_semantics", "Playback API acceptance, not measured acoustic onset; repeated skip reasons are coalesced")
             put("exported_at_epoch_ms", exportedAt)
             put(
                 "session",
@@ -185,3 +168,24 @@ data class SleepSessionExportResult(
     val locationHint: String,
     val uri: String?
 )
+
+/** Shared ZIP path for Downloads and app-external exports; testable without Android storage. */
+internal fun writeSleepSessionBundle(
+    outputStream: OutputStream,
+    manifest: String,
+    rawFile: File,
+    interventionCsv: String
+) {
+    ZipOutputStream(BufferedOutputStream(outputStream)).use { zip ->
+        fun textEntry(name: String, text: String) {
+            zip.putNextEntry(ZipEntry(name))
+            zip.write(text.toByteArray(StandardCharsets.UTF_8))
+            zip.closeEntry()
+        }
+        textEntry("manifest.json", manifest)
+        textEntry("stimulation_events.csv", interventionCsv)
+        zip.putNextEntry(ZipEntry(SleepSessionCsvWriter.RAW_CSV_FILE_NAME))
+        BufferedInputStream(rawFile.inputStream()).use { it.copyTo(zip) }
+        zip.closeEntry()
+    }
+}

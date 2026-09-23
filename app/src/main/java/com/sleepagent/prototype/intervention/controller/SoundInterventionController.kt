@@ -25,6 +25,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,10 +34,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-private const val ALPHA_OPEN_LOOP_INTERVAL_MS = 2_000L
-private const val N3_OPEN_LOOP_INTERVAL_MS = 2_500L
-private const val ALPHA_OPEN_LOOP_INITIAL_DELAY_MS = 1_000L
-private const val N3_OPEN_LOOP_INITIAL_DELAY_MS = 1_750L
 
 /**
  * Central controller for all sleep sound interventions.
@@ -47,23 +44,23 @@ private const val N3_OPEN_LOOP_INITIAL_DELAY_MS = 1_750L
  * Created and owned by [SleepRecordingService].
  */
 class SoundInterventionController(
-    private val context: Context,
-    private val backgroundPlayer: BackgroundAudioPlayer = Media3BackgroundAudioPlayer(context),
+    context: Context?,
+    private val backgroundPlayer: BackgroundAudioPlayer = Media3BackgroundAudioPlayer(requireNotNull(context)),
     private val pulsePlayer: PulseAudioPlayer = AudioTrackPulseAudioPlayer(),
     private val pinkNoiseGenerator: PinkNoiseGenerator = PinkNoiseGenerator(),
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.Main.immediate,
+    private val nowNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
+    private val wallTimeMillis: () -> Long = System::currentTimeMillis
 ) {
 
     /** Callback for persisting intervention events to the database. */
     var eventLogger: ((SoundInterventionEventEntity) -> Unit)? = null
 
-    private val alphaScheduler = AlphaTriggerScheduler()
-    private val alarmScheduler: SmartAlarmScheduler = SmartAlarmScheduler(context)
+    private val alphaScheduler = AlphaTriggerScheduler(nowNanos = nowNanos)
+    private val alarmScheduler = context?.let { SmartAlarmScheduler(it) }
 
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
     private var interventionJob: Job? = null
-    private var alphaOpenLoopJob: Job? = null
-    private var n3OpenLoopJob: Job? = null
     private var prepared: Boolean = false
 
     private val _state = MutableStateFlow(SoundInterventionState.IDLE)
@@ -105,7 +102,6 @@ class SoundInterventionController(
 
     private var sessionId: String? = null
     private var sleepStartNanos: Long = 0L
-    private var stableN3StartNanos: Long = 0L
     private var previousStage: SleepStage? = null
     private var stageStableStartNanos: Long = 0L
     private var consecutiveLightWakeCount: Int = 0
@@ -113,26 +109,35 @@ class SoundInterventionController(
     private var n3GroupPauseStartNanos: Long = 0L
     private var inN3GroupPause: Boolean = false
     private var n3PulsesInGroup: Int = 0
+    private var playbackJob: Job? = null
     private var backgroundStopJob: Job? = null
     private var backgroundFadeStarted = false
-    private var alphaOpenLoopPulseCount: Int = 0
-    private var n3OpenLoopPulseCount: Int = 0
+    private var sessionActive = false
+    private var paused = false
+    private var latestSnapshot: RealtimeSleepSnapshot? = null
+    private var lastSnapshotNanos = 0L
+    private var lastWakeEpoch: Int? = null
+    private val skipReasons = mutableMapOf<SoundInterventionType, String>()
 
     /**
      * Start the intervention controller for a sleep session.
      * Must be called when sleep recording begins.
      */
+    @Synchronized
     fun start(sessionId: String? = null) {
-        if (_state.value != SoundInterventionState.IDLE &&
-            _state.value != SoundInterventionState.STOPPED) return
+        if (sessionActive) return
+        require(!sessionId.isNullOrBlank()) { "A recording session is required for stimulation logs" }
 
         this.sessionId = sessionId
         reset()
         ensurePrepared()
         syncAlphaSchedulerConfig()
 
-        _state.value = SoundInterventionState.IDLE
-        sleepStartNanos = SystemClock.elapsedRealtimeNanos()
+        sessionActive = true
+        paused = false
+        _state.value = SoundInterventionState.MONITORING
+        alphaScheduler.start()
+        sleepStartNanos = nowNanos()
         initializeSmartWakeWindow(sleepStartNanos)
 
         logEvent(
@@ -151,22 +156,34 @@ class SoundInterventionController(
             scheduleFallbackAlarm()
         }
 
-        startOpenLoopInterventionsIfNeeded()
+        lastSnapshotNanos = nowNanos()
+        interventionJob = scope.launch {
+            while (isActive) {
+                delay(500)
+                checkDataTimeout()
+            }
+        }
     }
 
     /**
      * Stop all interventions and release resources.
      */
+    @Synchronized
     fun stop() {
+        if (!sessionActive) return
+        stopClosedLoop("session_stopped")
+        sessionActive = false
+        alphaScheduler.stop("session_stopped")
+        _alphaState.value = alphaScheduler.state
+        playbackJob?.cancel()
         logEvent(
             type = SoundInterventionType.BACKGROUND,
             eventType = SoundInterventionEventTypes.SESSION_STOPPED,
             success = true
         )
-        alarmScheduler.cancel()
+        alarmScheduler?.cancel()
         interventionJob?.cancel()
         interventionJob = null
-        stopOpenLoopInterventions(logStopped = true)
         backgroundStopJob?.cancel()
         backgroundStopJob = null
         backgroundPlayer.stop()
@@ -178,6 +195,7 @@ class SoundInterventionController(
      * Apply sound intervention config from UI settings.
      * Call this before or during a sleep session to update active sound parameters.
      */
+    @Synchronized
     fun applySoundConfig(
         backgroundEnabled: Boolean,
         soundKeyName: String,
@@ -207,7 +225,9 @@ class SoundInterventionController(
         this.deepSleepEnabled = deepSleepEnabled
         this.deepSleepPulseGain = deepSleepGain.coerceIn(0.01f, 0.20f)
         syncAlphaSchedulerConfig()
-        updateOpenLoopInterventions()
+        if (!alphaEnabled && _state.value == SoundInterventionState.ALPHA_INTERVENTION ||
+            !deepSleepEnabled && (_state.value == SoundInterventionState.N3_STIMULATING ||
+                _state.value == SoundInterventionState.N3_OBSERVING)) stopClosedLoop("disabled")
 
         if (_state.value == SoundInterventionState.BACKGROUND_PLAYING) {
             if (backgroundEnabled) {
@@ -221,6 +241,7 @@ class SoundInterventionController(
         }
     }
 
+    @Synchronized
     fun applySmartWakeConfig(
         enabled: Boolean,
         windowStartMinutesFromMidnight: Int,
@@ -238,6 +259,7 @@ class SoundInterventionController(
         }
     }
 
+    @Synchronized
     fun previewPulse(gain: Float): PulsePlaybackResult {
         ensurePrepared()
         return pulsePlayer.playPulseNow(gain.coerceIn(0.01f, 0.20f))
@@ -246,51 +268,97 @@ class SoundInterventionController(
     /**
      * Called each time new sleep data is available.
      */
+    @Synchronized
     fun onSnapshot(snapshot: RealtimeSleepSnapshot) {
-        if (_state.value == SoundInterventionState.STOPPED ||
-            _state.value == SoundInterventionState.FALLBACK_ALARMING) return
-
+        if (!sessionActive || paused || _state.value == SoundInterventionState.FALLBACK_ALARMING) return
+        val now = nowNanos()
+        val gap = now - lastSnapshotNanos
+        latestSnapshot = snapshot
+        lastSnapshotNanos = now
+        if (gap > 2_000_000_000L) invalidateFeedback("data_timeout")
+        // A smart wake runs once; the deadline still promotes it to the fallback alarm.
+        if (smartWakeEnabled && now >= smartWakeWindowEndNanos) {
+            triggerFallbackAlarm()
+            return
+        }
+        if (_state.value == SoundInterventionState.SMART_WAKING) return
+        val invalid = when {
+            !snapshot.isDeviceConnected -> "device_disconnected"
+            !snapshot.isRealModelResult -> "untrusted_model"
+            snapshot.stageAgeMillis !in 0..45_000L -> "stale_stage"
+            now - snapshot.elapsedRealtimeNanos !in 0..2_000_000_000L -> "stale_signal"
+            !snapshot.eegQuality.isFinite() || snapshot.eegQuality < 0.70f -> "bad_signal"
+            snapshot.motionLevel?.let { !it.isFinite() || it > 0.3f } == true -> "motion"
+            snapshot.sleepStage == SleepStage.UNKNOWN -> "unknown_stage"
+            else -> null
+        }
+        if (invalid != null) {
+            invalidateFeedback(invalid)
+            return
+        }
         val stage = snapshot.sleepStage
-        val now = SystemClock.elapsedRealtimeNanos()
-
-        // Track stage stability
         if (stage != previousStage) {
+            stopClosedLoop("stage_change")
             stageStableStartNanos = now
+            previousStage = stage
         }
-        previousStage = stage
-
         val stableMs = (now - stageStableStartNanos) / 1_000_000L
-
-        // Priority: Smart Wake > N3 > Alpha > Background
+        maybeFadeBackgroundAfterSleepOnset(snapshot, stableMs)
         when {
-            // Smart wake window check (also handles expiry → fallback alarm)
             smartWakeEnabled && now >= smartWakeWindowStartNanos -> {
-                if (now >= smartWakeWindowEndNanos) {
-                    triggerFallbackAlarm()
-                } else {
-                    evaluateSmartWake(snapshot, stableMs)
-                }
+                stopClosedLoop("smart_wake_window")
+                evaluateSmartWake(snapshot, stableMs)
             }
-
-            // N3 intervention
-            deepSleepEnabled && n3OpenLoopJob?.isActive != true &&
-                stage == SleepStage.DEEP && stableMs >= 120_000L -> {
-                evaluateN3Intervention(snapshot, stableMs)
+            deepSleepEnabled && stage == SleepStage.DEEP -> {
+                if (stableMs >= 120_000L) evaluateN3Intervention(snapshot, stableMs)
+                else logSkip(SoundInterventionType.DEEP_SLEEP, "awaiting_stable_n3")
             }
-
-            // Alpha intervention (only within first 30 minutes of sleep)
-            alphaEnabled && alphaOpenLoopJob?.isActive != true && isWithinAlphaWindow(now) &&
-                (stage == SleepStage.AWAKE || stage == SleepStage.LIGHT) -> {
+            alphaEnabled && isWithinAlphaWindow(now) &&
+                (stage == SleepStage.AWAKE || stage == SleepStage.LIGHT) ->
                 evaluateAlphaIntervention(snapshot, stableMs)
-            }
-
-            else -> {
-                maybeFadeBackgroundAfterSleepOnset(snapshot, stableMs)
-                if (_state.value != SoundInterventionState.BACKGROUND_PLAYING) {
-                    _state.value = SoundInterventionState.MONITORING
-                }
-            }
+            else -> stopClosedLoop("stage_or_window_ineligible")
         }
+        _alphaState.value = alphaScheduler.state
+    }
+
+    /** Called by both the watchdog and BLE connection collector, even with no packets. */
+    @Synchronized
+    fun invalidateFeedback(reason: String) {
+        if (!sessionActive) return
+        stopClosedLoop(reason)
+        alphaScheduler.invalidateSignal()
+        previousStage = null
+        consecutiveLightWakeCount = 0
+        lastWakeEpoch = null
+        if (alphaEnabled) logSkip(SoundInterventionType.ALPHA, reason)
+        if (deepSleepEnabled) logSkip(SoundInterventionType.DEEP_SLEEP, reason)
+        _alphaState.value = alphaScheduler.state
+    }
+
+    @Synchronized
+    fun checkDataTimeout() {
+        if (sessionActive && !paused && nowNanos() - lastSnapshotNanos > 2_000_000_000L) {
+            invalidateFeedback("data_timeout")
+        }
+    }
+
+    private fun logSkip(type: SoundInterventionType, reason: String) {
+        // Log decision transitions, not every 100 Hz sample; every accepted pulse is logged.
+        if (skipReasons.put(type, reason) == reason) return
+        logEvent(type, if (type == SoundInterventionType.ALPHA)
+            SoundInterventionEventTypes.ALPHA_PULSE_SKIPPED else SoundInterventionEventTypes.N3_PULSE_SKIPPED,
+            reason = reason, success = false)
+    }
+
+    private fun stopClosedLoop(reason: String) {
+        if (_state.value == SoundInterventionState.ALPHA_INTERVENTION) {
+            logEvent(SoundInterventionType.ALPHA, SoundInterventionEventTypes.ALPHA_INTERVENTION_STOPPED,
+                reason = reason, success = true)
+            _state.value = SoundInterventionState.MONITORING
+        }
+        if (_state.value == SoundInterventionState.N3_STIMULATING ||
+            _state.value == SoundInterventionState.N3_OBSERVING) stopN3Intervention(reason)
+        pulsePlayer.stop()
     }
 
     // ── Private helpers ──
@@ -317,170 +385,6 @@ class SoundInterventionController(
         )
     }
 
-    private fun updateOpenLoopInterventions() {
-        if (!isSessionActiveForOpenLoop()) return
-
-        if (alphaEnabled) {
-            startAlphaOpenLoopIfNeeded()
-        } else {
-            stopAlphaOpenLoop(logStopped = true)
-        }
-
-        if (deepSleepEnabled) {
-            startN3OpenLoopIfNeeded()
-        } else {
-            stopN3OpenLoop(logStopped = true)
-        }
-    }
-
-    private fun startOpenLoopInterventionsIfNeeded() {
-        if (alphaEnabled) startAlphaOpenLoopIfNeeded()
-        if (deepSleepEnabled) startN3OpenLoopIfNeeded()
-    }
-
-    private fun isSessionActiveForOpenLoop(): Boolean {
-        val currentState = _state.value
-        return sleepStartNanos > 0L &&
-            currentState != SoundInterventionState.STOPPED &&
-            currentState != SoundInterventionState.FALLBACK_ALARMING
-    }
-
-    private fun startAlphaOpenLoopIfNeeded() {
-        if (alphaOpenLoopJob?.isActive == true) return
-        alphaOpenLoopPulseCount = 0
-        logEvent(
-            type = SoundInterventionType.ALPHA,
-            eventType = SoundInterventionEventTypes.ALPHA_INTERVENTION_STARTED,
-            success = true,
-            reason = "open_loop"
-        )
-        alphaOpenLoopJob = scope.launch {
-            delay(ALPHA_OPEN_LOOP_INITIAL_DELAY_MS)
-            while (isActive && alphaEnabled && isSessionActiveForOpenLoop() && isWithinAlphaWindow(SystemClock.elapsedRealtimeNanos())) {
-                playOpenLoopPulse(
-                    type = SoundInterventionType.ALPHA,
-                    triggeredEventType = SoundInterventionEventTypes.ALPHA_PULSE_TRIGGERED,
-                    skippedEventType = SoundInterventionEventTypes.ALPHA_PULSE_SKIPPED,
-                    gain = alphaPulseGain,
-                    pulseIndex = ++alphaOpenLoopPulseCount
-                )
-                delay(ALPHA_OPEN_LOOP_INTERVAL_MS)
-            }
-            if (!isActive) return@launch
-            stopAlphaOpenLoop(logStopped = true)
-        }
-    }
-
-    private fun startN3OpenLoopIfNeeded() {
-        if (n3OpenLoopJob?.isActive == true) return
-        n3OpenLoopPulseCount = 0
-        logEvent(
-            type = SoundInterventionType.DEEP_SLEEP,
-            eventType = SoundInterventionEventTypes.N3_OPEN_LOOP_STARTED,
-            success = true,
-            reason = "beta_deep_sleep_lock_open_loop"
-        )
-        n3OpenLoopJob = scope.launch {
-            delay(N3_OPEN_LOOP_INITIAL_DELAY_MS)
-            while (isActive && deepSleepEnabled && isSessionActiveForOpenLoop()) {
-                playOpenLoopPulse(
-                    type = SoundInterventionType.DEEP_SLEEP,
-                    triggeredEventType = SoundInterventionEventTypes.N3_PULSE_TRIGGERED,
-                    skippedEventType = SoundInterventionEventTypes.N3_PULSE_SKIPPED,
-                    gain = deepSleepPulseGain,
-                    pulseIndex = ++n3OpenLoopPulseCount
-                )
-                delay(N3_OPEN_LOOP_INTERVAL_MS)
-            }
-            if (!isActive) return@launch
-            stopN3OpenLoop(logStopped = true)
-        }
-    }
-
-    private fun playOpenLoopPulse(
-        type: SoundInterventionType,
-        triggeredEventType: String,
-        skippedEventType: String,
-        gain: Float,
-        pulseIndex: Int
-    ) {
-        if (pulsePlayer.isActive) {
-            logEvent(
-                type = type,
-                eventType = skippedEventType,
-                pulseIndex = pulseIndex,
-                reason = "Pulse already active",
-                success = false
-            )
-            return
-        }
-
-        when (val result = pulsePlayer.playPulseNow(gain)) {
-            is PulsePlaybackResult.Playing -> {
-                logEvent(
-                    type = type,
-                    eventType = triggeredEventType,
-                    audioGain = gain,
-                    pulseIndex = pulseIndex,
-                    success = true,
-                    reason = "open_loop"
-                )
-            }
-            is PulsePlaybackResult.Skipped -> {
-                logEvent(
-                    type = type,
-                    eventType = skippedEventType,
-                    pulseIndex = pulseIndex,
-                    reason = result.reason,
-                    success = false
-                )
-            }
-            is PulsePlaybackResult.Error -> {
-                logEvent(
-                    type = type,
-                    eventType = SoundInterventionEventTypes.PULSE_PLAY_FAILED,
-                    pulseIndex = pulseIndex,
-                    reason = result.message,
-                    success = false
-                )
-            }
-            is PulsePlaybackResult.Scheduled -> Unit
-        }
-    }
-
-    private fun stopOpenLoopInterventions(logStopped: Boolean) {
-        stopAlphaOpenLoop(logStopped)
-        stopN3OpenLoop(logStopped)
-    }
-
-    private fun stopAlphaOpenLoop(logStopped: Boolean) {
-        val hadJob = alphaOpenLoopJob != null
-        alphaOpenLoopJob?.cancel()
-        alphaOpenLoopJob = null
-        if (logStopped && hadJob) {
-            logEvent(
-                type = SoundInterventionType.ALPHA,
-                eventType = SoundInterventionEventTypes.ALPHA_INTERVENTION_STOPPED,
-                success = true,
-                reason = "open_loop"
-            )
-        }
-    }
-
-    private fun stopN3OpenLoop(logStopped: Boolean) {
-        val hadJob = n3OpenLoopJob != null
-        n3OpenLoopJob?.cancel()
-        n3OpenLoopJob = null
-        if (logStopped && hadJob) {
-            logEvent(
-                type = SoundInterventionType.DEEP_SLEEP,
-                eventType = SoundInterventionEventTypes.N3_OPEN_LOOP_STOPPED,
-                success = true,
-                reason = "beta_deep_sleep_lock_open_loop"
-            )
-        }
-    }
-
     private fun initializeSmartWakeWindow(startNanos: Long) {
         if (!smartWakeEnabled) {
             smartWakeWindowStartNanos = Long.MAX_VALUE
@@ -488,7 +392,7 @@ class SoundInterventionController(
             return
         }
 
-        val nowMs = System.currentTimeMillis()
+        val nowMs = wallTimeMillis()
         val targetWakeMs = resolveNextWakeEpochMillis(nowMs, latestWakeMinutesFromMidnight)
         val windowStartMs = targetWakeMs - wakeWindowMinutes.coerceAtLeast(0) * 60_000L
         val nanosUntilWindowStart = (windowStartMs - nowMs).coerceAtLeast(0L) * 1_000_000L
@@ -501,20 +405,17 @@ class SoundInterventionController(
     private fun resolveNextWakeEpochMillis(nowMs: Long, wakeMinutesFromMidnight: Int): Long {
         val minutesPerDay = 24 * 60
         val normalizedMinutes = ((wakeMinutesFromMidnight % minutesPerDay) + minutesPerDay) % minutesPerDay
-        val wakeTodayMs =
-            nowMs - (nowMs % 86_400_000L) +
-                normalizedMinutes * 60_000L
-
-        return if (wakeTodayMs > nowMs) {
-            wakeTodayMs
-        } else {
-            wakeTodayMs + 86_400_000L
-        }
+        val zone = java.time.ZoneId.systemDefault()
+        val now = java.time.Instant.ofEpochMilli(nowMs).atZone(zone)
+        var target = now.toLocalDate().atTime(normalizedMinutes / 60, normalizedMinutes % 60).atZone(zone)
+        if (!target.isAfter(now)) target = target.plusDays(1)
+        return target.toInstant().toEpochMilli()
     }
 
     /**
      * Feed a downsampled EEG sample for alpha phase estimation.
      */
+    @Synchronized
     fun ingestEegSample(sample: Float) {
         alphaScheduler.ingestSample(sample)
     }
@@ -524,29 +425,28 @@ class SoundInterventionController(
 
         if (_state.value != SoundInterventionState.ALPHA_INTERVENTION) {
             _state.value = SoundInterventionState.ALPHA_INTERVENTION
-            alphaScheduler.start()
             logEvent(SoundInterventionType.ALPHA, SoundInterventionEventTypes.ALPHA_INTERVENTION_STARTED)
         }
 
         // Check stop conditions
         val stopReason = alphaScheduler.evaluateTrigger(snapshot, stableMs)
         if (stopReason == null) {
-            // evaluateTrigger returned null = should NOT pulse (skip reason recorded internally)
+            logSkip(SoundInterventionType.ALPHA, alphaScheduler.lastSkipReason ?: "ineligible")
             return
         }
 
         // Should trigger: check pulse player availability
         if (pulsePlayer.isActive) {
-            logEvent(SoundInterventionType.ALPHA,
-                SoundInterventionEventTypes.ALPHA_PULSE_SKIPPED,
-                reason = "Pulse already active")
+            logSkip(SoundInterventionType.ALPHA, "pulse_busy")
             return
         }
 
         val gain = stopReason // evaluateTrigger returns gain when should trigger
-        val result = pulsePlayer.playPulseNow(gain)
+        val result = runCatching { pulsePlayer.playPulseNow(gain) }
+            .getOrElse { PulsePlaybackResult.Error(it.message ?: "playback_exception") }
         when (result) {
             is PulsePlaybackResult.Playing -> {
+                skipReasons.remove(SoundInterventionType.ALPHA)
                 alphaScheduler.onPulseTriggered(gain)
                 logEvent(
                     type = SoundInterventionType.ALPHA,
@@ -565,28 +465,31 @@ class SoundInterventionController(
             is PulsePlaybackResult.Error -> {
                 logEvent(SoundInterventionType.ALPHA,
                     SoundInterventionEventTypes.PULSE_PLAY_FAILED,
-                    reason = result.message)
+                    reason = result.message, audioGain = gain)
+                pauseAll()
             }
-            is PulsePlaybackResult.Scheduled -> {}
+            is PulsePlaybackResult.Scheduled -> {
+                pulsePlayer.stop()
+                logSkip(SoundInterventionType.ALPHA, "unexpected_scheduled_result")
+            }
         }
     }
 
     private fun evaluateN3Intervention(snapshot: RealtimeSleepSnapshot, stableMs: Long) {
-        if (snapshot.eegQuality < 0.70f) {
-            stopN3Intervention("bad_signal")
-            return
-        }
 
         // Handle group pause
         if (inN3GroupPause) {
-            val pauseElapsed = (SystemClock.elapsedRealtimeNanos() - n3GroupPauseStartNanos) / 1_000_000L
-            if (pauseElapsed < 45_000L) return // still in pause
+            val pauseElapsed = (nowNanos() - n3GroupPauseStartNanos) / 1_000_000L
+            if (pauseElapsed < 45_000L) {
+                logSkip(SoundInterventionType.DEEP_SLEEP, "group_pause")
+                return
+            }
             inN3GroupPause = false
         }
 
         // Start new group if not in one
         if (n3PulsesInGroup == 0 && n3GroupCount >= 10) {
-            stopN3Intervention("max_groups")
+            logSkip(SoundInterventionType.DEEP_SLEEP, "max_groups")
             return
         }
 
@@ -602,14 +505,18 @@ class SoundInterventionController(
         }
 
         // Check refractory between pulses (500ms min)
-        val sinceLastPulse = (SystemClock.elapsedRealtimeNanos() - lastN3PulseNanos) / 1_000_000L
-        if (sinceLastPulse < 500L) return
+        val sinceLastPulse = (nowNanos() - lastN3PulseNanos) / 1_000_000L
+        if (lastN3PulseNanos > 0L && sinceLastPulse < 500L) return
+        if (pulsePlayer.isActive) {
+            logSkip(SoundInterventionType.DEEP_SLEEP, "pulse_busy")
+            return
+        }
 
         // Check pulse limit per group
         if (n3PulsesInGroup >= 8) {
             // Group finished, enter pause
             inN3GroupPause = true
-            n3GroupPauseStartNanos = SystemClock.elapsedRealtimeNanos()
+            n3GroupPauseStartNanos = nowNanos()
             n3PulsesInGroup = 0
             _state.value = SoundInterventionState.N3_OBSERVING
             logEvent(
@@ -621,12 +528,14 @@ class SoundInterventionController(
         }
 
         // Trigger pulse
-        val result = pulsePlayer.playPulseNow(deepSleepPulseGain)
+        val result = runCatching { pulsePlayer.playPulseNow(deepSleepPulseGain) }
+            .getOrElse { PulsePlaybackResult.Error(it.message ?: "playback_exception") }
         when (result) {
             is PulsePlaybackResult.Playing -> {
+                skipReasons.remove(SoundInterventionType.DEEP_SLEEP)
                 n3PulsesInGroup++
                 n3PulseCount++
-                lastN3PulseNanos = SystemClock.elapsedRealtimeNanos()
+                lastN3PulseNanos = nowNanos()
                 logEvent(
                     type = SoundInterventionType.DEEP_SLEEP,
                     eventType = SoundInterventionEventTypes.N3_PULSE_TRIGGERED,
@@ -647,10 +556,15 @@ class SoundInterventionController(
                 logEvent(
                     type = SoundInterventionType.DEEP_SLEEP,
                     eventType = SoundInterventionEventTypes.PULSE_PLAY_FAILED,
-                    reason = result.message
+                    reason = result.message, audioGain = deepSleepPulseGain,
+                    groupIndex = n3GroupCount, pulseIndex = n3PulsesInGroup + 1
                 )
+                pauseAll()
             }
-            is PulsePlaybackResult.Scheduled -> { /* not used for immediate play */ }
+            is PulsePlaybackResult.Scheduled -> {
+                pulsePlayer.stop()
+                logSkip(SoundInterventionType.DEEP_SLEEP, "unexpected_scheduled_result")
+            }
         }
     }
 
@@ -663,6 +577,10 @@ class SoundInterventionController(
             )
         }
 
+        val epoch = snapshot.stageEpochIndex ?: return
+        if (epoch == lastWakeEpoch) return
+        if (lastWakeEpoch != null && epoch != lastWakeEpoch!! + 1) consecutiveLightWakeCount = 0
+        lastWakeEpoch = epoch
         val stage = snapshot.sleepStage
         val score = when (stage) {
             SleepStage.AWAKE -> 1.0f
@@ -685,11 +603,13 @@ class SoundInterventionController(
     }
 
     private fun triggerSmartWake() {
+        stopClosedLoop("smart_wake")
+        backgroundStopJob?.cancel()
         _state.value = SoundInterventionState.SMART_WAKING
         backgroundPlayer.stop()
         pulsePlayer.stop()
         alphaScheduler.stop("Smart wake triggered")
-        stopOpenLoopInterventions(logStopped = true)
+        stopClosedLoop("interrupted")
 
         logEvent(
             type = SoundInterventionType.SMART_WAKE,
@@ -702,7 +622,8 @@ class SoundInterventionController(
             audioGain = 0.03f
         )
 
-        scope.launch {
+        playbackJob?.cancel()
+        playbackJob = scope.launch {
             backgroundPlayer.playLoop(
                 com.sleepagent.prototype.R.raw.wake_morning_birds,
                 0.03f
@@ -715,12 +636,16 @@ class SoundInterventionController(
     /**
      * Trigger fallback alarm (when smart wake failed or time expired).
      */
+    @Synchronized
     fun triggerFallbackAlarm() {
+        if (!sessionActive || paused) return
         if (_state.value == SoundInterventionState.FALLBACK_ALARMING) return
+        stopClosedLoop("fallback_alarm")
+        backgroundStopJob?.cancel()
         _state.value = SoundInterventionState.FALLBACK_ALARMING
         backgroundPlayer.stop()
         pulsePlayer.stop()
-        stopOpenLoopInterventions(logStopped = true)
+        stopClosedLoop("interrupted")
 
         logEvent(
             type = SoundInterventionType.FALLBACK_ALARM,
@@ -728,7 +653,8 @@ class SoundInterventionController(
             success = true
         )
 
-        scope.launch {
+        playbackJob?.cancel()
+        playbackJob = scope.launch {
             backgroundPlayer.playLoop(
                 com.sleepagent.prototype.R.raw.alarm_soft_plucks,
                 0.50f
@@ -738,12 +664,13 @@ class SoundInterventionController(
 
     private fun startBackgroundAudio() {
         backgroundStopJob?.cancel()
-        scope.launch {
+        playbackJob?.cancel()
+        playbackJob = scope.launch {
             backgroundPlayer.playLoop(
                 backgroundSoundResId,
                 backgroundGain
             )
-            _state.value = SoundInterventionState.BACKGROUND_PLAYING
+            if (_state.value == SoundInterventionState.MONITORING) _state.value = SoundInterventionState.BACKGROUND_PLAYING
             logEvent(
                 type = SoundInterventionType.BACKGROUND,
                 eventType = SoundInterventionEventTypes.BACKGROUND_STARTED,
@@ -755,12 +682,14 @@ class SoundInterventionController(
         if (!keepBackgroundAllNight) {
             backgroundStopJob = scope.launch {
                 delay(backgroundDurationMinutes * 60_000L)
-                if (_state.value == SoundInterventionState.BACKGROUND_PLAYING) {
+                if (sessionActive && _state.value != SoundInterventionState.SMART_WAKING &&
+                    _state.value != SoundInterventionState.FALLBACK_ALARMING) {
                     if (fadeAfterSleepOnset) {
                         backgroundPlayer.fadeTo(0f, backgroundFadeDurationMillis)
                     }
                     backgroundPlayer.stop()
-                    _state.value = SoundInterventionState.MONITORING
+                    if (_state.value == SoundInterventionState.BACKGROUND_PLAYING)
+                        _state.value = SoundInterventionState.MONITORING
                     logEvent(
                         type = SoundInterventionType.BACKGROUND,
                         eventType = SoundInterventionEventTypes.BACKGROUND_STOPPED,
@@ -776,7 +705,7 @@ class SoundInterventionController(
 
     private fun maybeFadeBackgroundAfterSleepOnset(snapshot: RealtimeSleepSnapshot, stableMs: Long) {
         if (!backgroundEnabled || !fadeAfterSleepOnset || keepBackgroundAllNight || backgroundFadeStarted) return
-        if (_state.value != SoundInterventionState.BACKGROUND_PLAYING) return
+        if (!backgroundPlayer.state.value.isPlaying) return
         if (snapshot.sleepStage != SleepStage.LIGHT && snapshot.sleepStage != SleepStage.DEEP) return
         if (stableMs < 120_000L) return
 
@@ -793,7 +722,8 @@ class SoundInterventionController(
             )
             backgroundPlayer.fadeTo(0f, backgroundFadeDurationMillis)
             backgroundPlayer.stop()
-            _state.value = SoundInterventionState.MONITORING
+            if (_state.value == SoundInterventionState.BACKGROUND_PLAYING)
+                _state.value = SoundInterventionState.MONITORING
             logEvent(
                 type = SoundInterventionType.BACKGROUND,
                 eventType = SoundInterventionEventTypes.BACKGROUND_STOPPED,
@@ -824,11 +754,13 @@ class SoundInterventionController(
     /**
      * User confirmed awake — stop all sound and vibration.
      */
+    @Synchronized
     fun userConfirmedAwake() {
+        stop()
         backgroundPlayer.stop()
         pulsePlayer.stop()
-        stopOpenLoopInterventions(logStopped = true)
-        alarmScheduler.cancel()
+        stopClosedLoop("interrupted")
+        alarmScheduler?.cancel()
         logEvent(
             type = SoundInterventionType.SMART_WAKE,
             eventType = SoundInterventionEventTypes.USER_CONFIRMED_AWAKE,
@@ -840,23 +772,29 @@ class SoundInterventionController(
     /**
      * Pause all intervention audio (e.g., for phone call).
      */
+    @Synchronized
     fun pauseAll() {
+        paused = true
+        playbackJob?.cancel()
+        backgroundStopJob?.cancel()
         backgroundPlayer.pause()
         pulsePlayer.stop()
-        stopOpenLoopInterventions(logStopped = true)
+        stopClosedLoop("interrupted")
     }
 
+    @Synchronized
     fun release() {
         stop()
         backgroundPlayer.release()
         pulsePlayer.release()
         prepared = false
+        scope.cancel()
     }
 
     private fun scheduleFallbackAlarm() {
-        val scheduled = alarmScheduler.canScheduleExactAlarms()
+        val scheduled = alarmScheduler?.canScheduleExactAlarms() == true
         if (scheduled) {
-            alarmScheduler.schedule(latestWakeMinutesFromMidnight, wakeWindowMinutes)
+            alarmScheduler?.schedule(latestWakeMinutesFromMidnight, wakeWindowMinutes)
         }
         logEvent(
             type = SoundInterventionType.FALLBACK_ALARM,
@@ -868,7 +806,8 @@ class SoundInterventionController(
 
     private fun reset() {
         interventionJob?.cancel()
-        stopOpenLoopInterventions(logStopped = false)
+        alphaScheduler.reset()
+        playbackJob?.cancel()
         backgroundStopJob?.cancel()
         backgroundStopJob = null
         n3GroupCount = 0
@@ -879,12 +818,12 @@ class SoundInterventionController(
         consecutiveLightWakeCount = 0
         previousStage = null
         stageStableStartNanos = 0L
-        stableN3StartNanos = 0L
         lastN3PulseNanos = 0L
         n3GroupPauseStartNanos = 0L
         sleepStartNanos = 0L
-        alphaOpenLoopPulseCount = 0
-        n3OpenLoopPulseCount = 0
+        latestSnapshot = null
+        lastWakeEpoch = null
+        skipReasons.clear()
         _alphaState.update { AlphaInterventionState() }
         alphaScheduler.reset()
     }
@@ -902,20 +841,33 @@ class SoundInterventionController(
         success: Boolean? = null
     ) {
         val logger = eventLogger ?: return
-        val now = System.currentTimeMillis()
-        val nowNanos = SystemClock.elapsedRealtimeNanos()
+        val recordingSession = sessionId ?: return
+        val feedback = latestSnapshot
+        val alpha = alphaScheduler.debugInfo()
+        val now = wallTimeMillis()
+        val nowNanos = nowNanos()
         val entity = SoundInterventionEventEntity(
-            sessionId = sessionId ?: "",
+            sessionId = recordingSession,
             timestampMillis = now,
             elapsedRealtimeNanos = nowNanos,
             interventionType = type.name,
             eventType = eventType,
             interventionState = _state.value.name,
+            sleepStage = feedback?.sleepStage?.name,
+            stageProbability = feedback?.stageProbabilities?.get(feedback.sleepStage),
+            eegQuality = feedback?.eegQuality,
+            motionLevel = feedback?.motionLevel,
+            heartRate = feedback?.heartRate,
+            alphaMode = if (type == SoundInterventionType.ALPHA) "ALPHA_AWARE" else null,
+            individualAlphaFrequencyHz = if (type == SoundInterventionType.ALPHA) alpha["iaf_hz"] as? Float else null,
+            estimatedPhaseDeg = if (type == SoundInterventionType.ALPHA) alpha["phase_deg"] as? Float else null,
+            alphaAmplitude = if (type == SoundInterventionType.ALPHA) alpha["amplitude"] as? Float else null,
+            metadataJson = "{\"control_mode\":\"closed_loop\",\"stage_epoch\":${feedback?.stageEpochIndex},\"real_model\":${feedback?.isRealModelResult ?: false},\"model_context_delay_ms\":60000}",
             backgroundSoundKey = backgroundSoundKey,
             audioGain = audioGain,
             groupIndex = groupIndex,
             pulseIndex = pulseIndex,
-            success = success,
+            success = success ?: if (eventType.endsWith("SKIPPED") || eventType == SoundInterventionEventTypes.PULSE_PLAY_FAILED) false else null,
             reason = reason
         )
         logger(entity)

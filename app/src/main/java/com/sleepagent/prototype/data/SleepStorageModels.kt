@@ -56,6 +56,7 @@ enum class SleepStage {
 
 enum class SleepStageSource {
     MODEL,
+    MOCK,
     MANUAL,
     IMPORT
 }
